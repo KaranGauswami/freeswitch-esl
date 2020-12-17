@@ -14,11 +14,11 @@ use std::net::SocketAddr;
 fn main() -> Result<()> {
 
     // connecting to Freeswitch
-    let addr = SocketAddr::from(([192, 168, 43, 222], 8021));
+    let addr = SocketAddr::from(([127, 0, 0, 1], 8021));
     let mut esl = FreeswitchESL::new(addr, "ClueCon")?;
 
     // executing command
-    let response = esl.api("sofia status profile 192.168.43.222 reg")?;
+    let response = esl.api("sofia status")?;
     eprintln!("response {:?}", response);
 
     Ok(())
