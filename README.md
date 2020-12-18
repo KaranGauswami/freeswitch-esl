@@ -8,18 +8,15 @@ FreeSwitch ESL implementation for Rust
 
 ```rust
 use anyhow::Result;
-use freeswitch_esl::blocking::FreeswitchESL;
+use freeswitch_esl::blocking::OutboundConn;
 use std::net::SocketAddr;
 
 fn main() -> Result<()> {
-
-    // connecting to Freeswitch
     let addr = SocketAddr::from(([127, 0, 0, 1], 8021));
-    let mut esl = FreeswitchESL::new(addr, "ClueCon")?;
-
-    // executing command
+    let mut esl = OutboundConn::new(addr, "ClueCon")?;
     let response = esl.api("sofia status")?;
-    eprintln!("response {:?}", response);
+    eprintln!("response headers {:?}", response.headers());
+    eprintln!("response body {:?}", response.body());
 
     Ok(())
 }

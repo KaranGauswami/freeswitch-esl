@@ -3,24 +3,44 @@ use regex::Regex;
 use std::io::prelude::*;
 use std::net::{SocketAddr, TcpStream};
 #[derive(Debug, Clone)]
-pub struct ApiResponse {
+pub struct ResponseHeaders {
     content_type: String,
     content_length: usize,
-    body: String,
 }
-impl ApiResponse {
-    fn new(content_type: String, content_length: usize, body: String) -> Self {
+impl ResponseHeaders {
+    fn new(content_type: String, content_length: usize) -> Self {
         Self {
             content_type,
             content_length,
-            body,
         }
     }
+    pub fn content_type(&self) -> &String {
+        &self.content_type
+    }
+    pub fn content_length(&self) -> usize {
+        self.content_length
+    }
 }
-pub struct FreeswitchESL {
+#[derive(Debug, Clone)]
+pub struct ApiResponse {
+    headers: ResponseHeaders,
+    body: String,
+}
+impl ApiResponse {
+    fn new(headers: ResponseHeaders, body: String) -> Self {
+        Self { headers, body }
+    }
+    pub fn headers(&self) -> &ResponseHeaders {
+        &self.headers
+    }
+    pub fn body(&self) -> &String {
+        &self.body
+    }
+}
+pub struct OutboundConn {
     stream: TcpStream,
 }
-impl FreeswitchESL {
+impl OutboundConn {
     pub fn new(addr: SocketAddr, passwd: &str) -> Result<Self> {
         // Connect to ESL
         let mut stream = TcpStream::connect(addr)?;
@@ -57,7 +77,8 @@ impl FreeswitchESL {
         let mut buf = vec![0; content_length];
         let _ = self.stream.read_exact(&mut buf)?;
         let response = String::from_utf8(buf)?;
-        Ok(ApiResponse::new(content_type, content_length, response))
+        let headers = ResponseHeaders::new(content_type, content_length);
+        Ok(ApiResponse::new(headers, response))
     }
 }
 fn parse(buf: &[u8]) -> String {
