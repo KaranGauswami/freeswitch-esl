@@ -2,6 +2,7 @@ use anyhow::Result;
 use regex::Regex;
 use std::io::prelude::*;
 use std::net::{SocketAddr, TcpStream};
+use std::sync::{Arc, Mutex};
 #[derive(Debug, Clone)]
 pub struct ResponseHeaders {
     content_type: String,
@@ -38,7 +39,7 @@ impl ApiResponse {
     }
 }
 pub struct OutboundConn {
-    stream: TcpStream,
+    stream: Arc<Mutex<TcpStream>>,
 }
 impl OutboundConn {
     pub fn new(addr: SocketAddr, passwd: &str) -> Result<Self> {
@@ -55,16 +56,19 @@ impl OutboundConn {
         stream.read(&mut buf)?;
 
         // stream. write("event json all\n\n".as_bytes())?;
-        Ok(Self { stream })
+        Ok(Self {
+            stream: Arc::new(Mutex::new(stream)),
+        })
     }
-    pub fn api(&mut self, command: &str) -> Result<ApiResponse> {
+    pub fn api(&self, command: &str) -> Result<ApiResponse> {
         // Send api command
         let command = format!("api {}\n\n", command);
-        self.stream.write(&command.as_bytes())?;
+        let mut stream_lock = self.stream.lock().unwrap();
+        stream_lock.write(&command.as_bytes())?;
 
         // read headers
         let mut buffer = [0; 64];
-        self.stream.read(&mut buffer)?;
+        stream_lock.read(&mut buffer)?;
         let result = parse(&buffer);
 
         // read content-type and content-length from header
@@ -75,7 +79,8 @@ impl OutboundConn {
 
         // read reponse based on content-length
         let mut buf = vec![0; content_length];
-        let _ = self.stream.read_exact(&mut buf)?;
+        let _ = stream_lock.read_exact(&mut buf)?;
+        std::mem::drop(stream_lock);
         let response = String::from_utf8(buf)?;
         let headers = ResponseHeaders::new(content_type, content_length);
         Ok(ApiResponse::new(headers, response))

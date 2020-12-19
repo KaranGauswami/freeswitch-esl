@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 
 fn main() -> Result<()> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 8021));
-    let mut esl = OutboundConn::new(addr, "ClueCon")?;
+    let esl = OutboundConn::new(addr, "ClueCon")?;
 
     let response = esl.api("status")?;
 
