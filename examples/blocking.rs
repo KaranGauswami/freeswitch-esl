@@ -7,8 +7,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let response = esl.api("status")?;
 
-    eprintln!("response headers {:?}", response.headers());
-    eprintln!("response body {:?}", response.body());
+    println!("response headers {:?}", response.headers());
+    println!("response body {:?}", response.body());
 
     Ok(())
 }
