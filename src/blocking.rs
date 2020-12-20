@@ -77,7 +77,7 @@ impl OutboundConn {
         let content_type = cap.get(1).unwrap().as_str().to_owned();
         let content_length = cap.get(2).unwrap().as_str().parse::<usize>()?;
 
-        // read reponse based on content-length
+        // read response based on content-length
         let mut buf = vec![0; content_length];
         let _ = stream_lock.read_exact(&mut buf)?;
         std::mem::drop(stream_lock);
