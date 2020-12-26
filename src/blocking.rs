@@ -1,6 +1,6 @@
 use anyhow::Result;
 use regex::Regex;
-use std::io::prelude::*;
+use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::sync::{Arc, Mutex};
 #[derive(Debug, Clone)]
