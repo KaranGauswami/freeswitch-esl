@@ -38,10 +38,10 @@ impl ApiResponse {
         &self.body
     }
 }
-pub struct OutboundConn {
+pub struct InboundConn {
     stream: Arc<Mutex<TcpStream>>,
 }
-impl OutboundConn {
+impl InboundConn {
     pub fn new(addr: SocketAddr, passwd: &str) -> Result<Self> {
         // Connect to ESL
         let mut stream = TcpStream::connect(addr)?;
