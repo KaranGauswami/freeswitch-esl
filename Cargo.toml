@@ -14,3 +14,7 @@ log = { version = "0.4.14", features = [
 ] }
 anyhow = { version = "*" }
 env_logger = "0.9.0"
+bytes = { version = "*" }
+tokio-util = { version = "0.6.9", features = ["full"] }
+tokio-stream = { version = "*" }
+futures = { version = "*" }
