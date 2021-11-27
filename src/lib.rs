@@ -14,22 +14,10 @@ mod io;
 use tokio::sync::mpsc::channel;
 use tokio::sync::mpsc::Sender;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    env_logger::init();
 
-    let addr = "3.109.206.34:8021".parse().unwrap();
-    let inbound = Inbound::new(addr).await?;
-    let _ = inbound.api("reloadxml").await;
-    let _ = inbound.api("sofia profile external restart").await;
-    let _ = inbound.api("sofia profile external restart").await;
-    debug!("finished");
-    tokio::time::sleep(Duration::from_secs(10)).await;
-    Ok(())
-}
 pub struct Inbound {
     sender: Arc<Sender<String>>,
-    commands: Arc<Mutex<Vec<Sender<String>>>>,
+    commands: Arc<Mutex<Vec<Sender<Event>>>>,
 }
 
 use crate::io::{Event, MyCodc};
@@ -62,7 +50,8 @@ impl Inbound {
                         }
                     },
                     something = transport.next() => {
-                        match something.unwrap().unwrap() {
+                        let event = something.unwrap().unwrap();
+                        match event {
                             Event::Auth => {
                                 debug!("got auth");
                                 let _ = transport.send("auth ClueCon\n\n".to_string()).await;
@@ -70,7 +59,13 @@ impl Inbound {
                             Event::Reply(n) => {
                                 let tx = inner_commands.lock().await.pop().unwrap();
                                 debug!("got reply {}", n);
-                                let _ = tx.send(n.clone()).await;
+                                let _ = tx.send(Event::Reply(n.clone())).await;
+                                debug!("send channel data for {}",n);
+                            }
+                            Event::ApiResponse(n) => {
+                                let tx = inner_commands.lock().await.pop().unwrap();
+                                debug!("got api response {}", n);
+                                let _ = tx.send(Event::ApiResponse(n.clone())).await;
                                 debug!("send channel data for {}",n);
                             }
                         }
@@ -87,7 +82,7 @@ impl Inbound {
         self.commands.lock().await.push(sender);
         // commands.push(sender);
         if let Some(a) = receiver.recv().await {
-            debug!("received data from channel: {}", a);
+            debug!("received data from channel: {:?}", a);
             Ok(())
         } else {
             Ok(())
