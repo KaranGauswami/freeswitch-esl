@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use freeswitch_esl::Inbound;
+use freeswitch_esl::inbound::Inbound;
 use log::debug;
 
 #[tokio::main]
