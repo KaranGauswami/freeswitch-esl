@@ -3,7 +3,6 @@ use futures::SinkExt;
 use log::debug;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
@@ -13,7 +12,6 @@ mod io;
 
 use tokio::sync::mpsc::channel;
 use tokio::sync::mpsc::Sender;
-
 
 pub struct Inbound {
     sender: Arc<Sender<String>>,
@@ -75,7 +73,7 @@ impl Inbound {
         });
         Ok(connection)
     }
-    async fn api(&self, command: &str) -> Result<()> {
+    pub async fn api(&self, command: &str) -> Result<()> {
         debug!("Send api");
         self.sender.send(format!("api {}\n\n", command)).await?;
         let (sender, mut receiver) = channel(10);
