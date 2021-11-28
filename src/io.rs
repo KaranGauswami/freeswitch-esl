@@ -13,7 +13,7 @@ impl Encoder<String> for EslCodec {
     fn encode(&mut self, item: String, dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
         debug!("self {}", item);
         dst.extend_from_slice(item.as_bytes());
-        return Ok(());
+        Ok(())
     }
 }
 #[derive(Debug, Clone)]
@@ -41,8 +41,8 @@ fn parse_body(src: &[u8], length: usize) -> String {
     String::from_utf8_lossy(&src[2..length + 1]).to_string()
 }
 fn parse_header(src: &[u8]) -> HashMap<String, String> {
-    info!("parsing this header {:#?}", String::from_utf8_lossy(&src));
-    let data = String::from_utf8_lossy(&src).to_string();
+    info!("parsing this header {:#?}", String::from_utf8_lossy(src));
+    let data = String::from_utf8_lossy(src).to_string();
     let mut a = data.split('\n');
     let mut hash = HashMap::new();
     while let Some(line) = a.next() {
@@ -59,19 +59,19 @@ impl Decoder for EslCodec {
     type Error = anyhow::Error;
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         debug!("decode");
-        let newline = get_header_end(&src);
+        let newline = get_header_end(src);
         if let Some(x) = newline {
             info!("header end is {:?}", newline);
             let headers = parse_header(&src[..x]);
             info!("current remaining {:?}", String::from_utf8_lossy(&src[x..]));
             if let Some(somes) = headers.get("Content-Type") {
-                match &somes.as_str() {
-                    &"auth/request" => {
+                match somes.as_str() {
+                    "auth/request" => {
                         src.advance(src.len());
                         info!("returned auth");
                         return Ok(Some(InboundResponse::Auth {}));
                     }
-                    &"api/response" => {
+                    "api/response" => {
                         if let Some(body_length) = headers.get("Content-Length") {
                             let body_length = body_length.parse().unwrap();
                             let body = parse_body(&src[x..], body_length);
@@ -83,7 +83,7 @@ impl Decoder for EslCodec {
                             panic!("content_length not found");
                         }
                     }
-                    &"command/reply" => {
+                    "command/reply" => {
                         src.advance(src.len());
                         info!("returned command/reply");
                         return Ok(Some(InboundResponse::Reply("OK".to_string())));
@@ -96,7 +96,7 @@ impl Decoder for EslCodec {
             panic!("should not reach here");
         } else {
             info!("when header is not there {:?}", src);
-            return Ok(None);
+            Ok(None)
         }
     }
 }

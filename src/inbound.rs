@@ -54,27 +54,25 @@ impl Inbound {
                     },
                     something = transport.next() => {
                         let event = something;
-                        if let Some(event) = event{
-                            if let Ok(event) = event{
-                                match event {
-                                    InboundResponse::Auth => {
-                                        debug!("got auth");
-                                        let _ = transport.send("auth ClueCon\n\n".to_string()).await;
-                                        inner_commands.lock().await.push(None);
+                        if let Some(Ok(event)) = event{
+                            match event {
+                                InboundResponse::Auth => {
+                                    debug!("got auth");
+                                    let _ = transport.send("auth ClueCon\n\n".to_string()).await;
+                                    inner_commands.lock().await.push(None);
+                                }
+                                InboundResponse::Reply(n) => {
+                                    debug!("got reply {}", n);
+                                    if let Some(tx) = inner_commands.lock().await.pop().unwrap(){
+                                        let _ = tx.send(InboundResponse::Reply(n.clone())).await;
+                                        debug!("send channel data for {}",n);
                                     }
-                                    InboundResponse::Reply(n) => {
-                                        debug!("got reply {}", n);
-                                        if let Some(tx) = inner_commands.lock().await.pop().unwrap(){
-                                            let _ = tx.send(InboundResponse::Reply(n.clone())).await;
-                                            debug!("send channel data for {}",n);
-                                        }
-                                    }
-                                    InboundResponse::ApiResponse(n) => {
-                                        debug!("got api response {}", n);
-                                        if let Some(tx) = inner_commands.lock().await.pop().unwrap(){
-                                            let _ = tx.send(InboundResponse::ApiResponse(n.clone())).await;
-                                            debug!("send channel data for {}",n);
-                                        }
+                                }
+                                InboundResponse::ApiResponse(n) => {
+                                    debug!("got api response {}", n);
+                                    if let Some(tx) = inner_commands.lock().await.pop().unwrap(){
+                                        let _ = tx.send(InboundResponse::ApiResponse(n.clone())).await;
+                                        debug!("send channel data for {}",n);
                                     }
                                 }
                             }
@@ -94,9 +92,9 @@ impl Inbound {
         // commands.push(sender);
         if let Some(a) = receiver.recv().await {
             debug!("received data from channel: {:?}", a);
-            return Ok(a);
+            Ok(a)
         } else {
-            return Err(anyhow::anyhow!("key"));
+            Err(anyhow::anyhow!("key"))
         }
     }
 }
