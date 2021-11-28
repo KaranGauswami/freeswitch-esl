@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use freeswitch_esl::inbound::Inbound;
-use log::debug;
+use log::{debug, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -10,9 +10,13 @@ async fn main() -> Result<()> {
 
     let addr = "3.109.206.34:8021".parse().unwrap();
     let inbound = Inbound::new(addr).await?;
-    let _ = inbound.api("reloadxml").await;
-    let _ = inbound.api("sofia status").await;
+    let reloadxml = inbound.api("reloadxml").await;
+    info!("reloadxml response : {:?}", reloadxml);
+    let sofia = inbound.api("sofia status").await;
+    info!("sofia response : {:?}", sofia);
+    let reloadxml = inbound.api("reloadxml").await;
+    info!("reloadxml response : {:?}", reloadxml);
     debug!("finished");
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
     Ok(())
 }
