@@ -43,9 +43,9 @@ fn parse_body(src: &[u8], length: usize) -> String {
 fn parse_header(src: &[u8]) -> HashMap<String, String> {
     info!("parsing this header {:#?}", String::from_utf8_lossy(src));
     let data = String::from_utf8_lossy(src).to_string();
-    let mut a = data.split('\n');
+    let a = data.split('\n');
     let mut hash = HashMap::new();
-    while let Some(line) = a.next() {
+    for line in a {
         let mut key_value = line.split(':');
         let key = key_value.next().unwrap().trim().to_string();
         let val = key_value.next().unwrap().trim().to_string();
