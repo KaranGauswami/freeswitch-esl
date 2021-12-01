@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 use tokio_util::codec::Framed;
 pub struct Inbound {
-    sender: Arc<Sender<String>>,
+    sender: Sender<String>,
     commands: Arc<Mutex<Vec<Option<OneShotSender<InboundResponse>>>>>,
 }
 
@@ -20,7 +20,7 @@ impl Inbound {
     pub async fn new(socket: SocketAddr) -> Result<Self, tokio::io::Error> {
         let stream = TcpStream::connect(socket).await?;
         let (sender, mut receiver) = channel(1);
-        let sender = Arc::new(sender);
+        // let sender = Arc::new(sender);
         let commands = Arc::new(Mutex::new(vec![]));
         let inner_commands = Arc::clone(&commands);
         let connection = Self { sender, commands };
