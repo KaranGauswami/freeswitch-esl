@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
     let inbound = Inbound::new(addr).await?;
     let reloadxml = inbound.api("reloadxml").await;
     info!("reloadxml response : {:?}", reloadxml);
-    let sofia = inbound.api("sofia status").await;
+    let sofia = inbound.bgapi("sofia status").await;
     info!("sofia response : {:?}", sofia);
     let reloadxml = inbound.api("reloadxml").await;
     info!("reloadxml response : {:?}", reloadxml);
