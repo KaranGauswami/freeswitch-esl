@@ -6,12 +6,14 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::oneshot::channel as oneshot_channel;
+use tokio::sync::oneshot::Sender as OneShotSender;
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 use tokio_util::codec::Framed;
 pub struct Inbound {
     sender: Arc<Sender<String>>,
-    commands: Arc<Mutex<Vec<Option<Sender<InboundResponse>>>>>,
+    commands: Arc<Mutex<Vec<Option<OneShotSender<InboundResponse>>>>>,
 }
 
 impl Inbound {
@@ -55,14 +57,14 @@ impl Inbound {
                                 InboundResponse::Reply(n) => {
                                     debug!("got reply {}", n);
                                     if let Some(tx) = inner_commands.lock().await.pop().unwrap(){
-                                        let _ = tx.send(InboundResponse::Reply(n.clone())).await;
+                                        let _ = tx.send(InboundResponse::Reply(n.clone()));
                                         debug!("send channel data for {}",n);
                                     }
                                 }
                                 InboundResponse::ApiResponse(n) => {
                                     debug!("got api response {}", n);
                                     if let Some(tx) = inner_commands.lock().await.pop().unwrap(){
-                                        let _ = tx.send(InboundResponse::ApiResponse(n.clone())).await;
+                                        let _ = tx.send(InboundResponse::ApiResponse(n.clone()));
                                         debug!("send channel data for {}",n);
                                     }
                                 }
@@ -78,10 +80,10 @@ impl Inbound {
     pub async fn api(&self, command: &str) -> Result<InboundResponse> {
         debug!("Send api {}", command);
         self.sender.send(format!("api {}\n\n", command)).await?;
-        let (sender, mut receiver) = channel(10);
+        let (sender, receiver) = oneshot_channel();
         self.commands.lock().await.push(Some(sender));
-        // commands.push(sender);
-        if let Some(a) = receiver.recv().await {
+
+        if let Ok(a) = receiver.await {
             debug!("received data from channel: {:?}", a);
             Ok(a)
         } else {
@@ -94,10 +96,10 @@ impl Inbound {
         self.sender
             .send(format!("bgapi {}\nJob-UUID: {}\n\n", command, job_uuid))
             .await?;
-        let (sender, mut receiver) = channel(10);
+        let (sender, receiver) = oneshot_channel();
         self.commands.lock().await.push(Some(sender));
         // commands.push(sender);
-        if let Some(a) = receiver.recv().await {
+        if let Ok(a) = receiver.await {
             debug!("received data from channel: {:?}", a);
             Ok(a)
         } else {
