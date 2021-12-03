@@ -12,9 +12,9 @@ async fn main() -> Result<()> {
     let inbound = Inbound::new(addr).await?;
     let reloadxml = inbound.api("reloadxml").await;
     info!("reloadxml response : {:?}", reloadxml);
-    let sofia = inbound.bgapi("sofia status").await;
+    let sofia = inbound.api("sofia status").await;
     info!("sofia response : {:?}", sofia);
-    let reloadxml = inbound.api("reloadxml").await;
+    let reloadxml = inbound.bgapi("reloadxml").await;
     info!("reloadxml response : {:?}", reloadxml);
     debug!("finished");
     tokio::time::sleep(Duration::from_secs(1)).await;

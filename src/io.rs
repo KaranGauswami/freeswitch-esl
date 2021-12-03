@@ -32,9 +32,11 @@ fn get_header_end(src: &bytes::BytesMut) -> Option<usize> {
     None
 }
 fn parse_body(src: &[u8], length: usize) -> String {
-    String::from_utf8_lossy(&src[2..length + 2]).to_string()
+    info!("parse body src : {}", String::from_utf8_lossy(src));
+    info!("length src : {}", length);
+    String::from_utf8_lossy(&src[2..length + 1]).to_string()
 }
-fn parse_header(src: &[u8]) -> HashMap<String, String> {
+fn parse_header(src: &[u8]) -> Result<HashMap<String, String>> {
     debug!("parsing this header {:#?}", String::from_utf8_lossy(src));
     let data = String::from_utf8_lossy(src).to_string();
     let a = data.split('\n');
@@ -46,7 +48,7 @@ fn parse_header(src: &[u8]) -> HashMap<String, String> {
         hash.insert(key, val);
     }
     debug!("returning hashmap : {:?}", hash);
-    hash
+    Ok(hash)
 }
 impl Decoder for EslCodec {
     type Item = InboundResponse;
@@ -56,7 +58,7 @@ impl Decoder for EslCodec {
         let newline = get_header_end(src);
         if let Some(x) = newline {
             debug!("header end is {:?}", newline);
-            let headers = parse_header(&src[..x]);
+            let headers = parse_header(&src[..x])?;
             debug!("current remaining {:?}", String::from_utf8_lossy(&src[x..]));
             if let Some(somes) = headers.get("Content-Type") {
                 match somes.as_str() {
@@ -67,8 +69,10 @@ impl Decoder for EslCodec {
                     }
                     "api/response" => {
                         if let Some(body_length) = headers.get("Content-Length") {
-                            let body_length = body_length.parse().unwrap();
+                            let body_length = body_length.parse()?;
                             let body = parse_body(&src[x..], body_length);
+                            error!("advancing");
+                            error!("src is {}", String::from_utf8_lossy(src));
                             src.advance(src.len());
                             debug!("returned api/response");
                             return Ok(Some(InboundResponse::ApiResponse(body)));
@@ -85,8 +89,8 @@ impl Decoder for EslCodec {
                     }
                     "text/event-json" => {
                         if let Some(body_length) = headers.get("Content-Length") {
-                            let body_length = body_length.parse().unwrap();
-                            let body = parse_json_body(&src[x..], body_length);
+                            let body_length = body_length.parse()?;
+                            let body = parse_json_body(&src[x..], body_length)?;
                             error!("{:?}", body);
                             let body = format!("{:?}", body);
                             src.advance(src.len());
@@ -102,7 +106,7 @@ impl Decoder for EslCodec {
                     }
                 }
             }
-            panic!("should not reach here");
+            panic!("should not reach here {:?}", headers);
         } else {
             debug!("when header is not there {:?}", src);
             Ok(None)
@@ -110,7 +114,7 @@ impl Decoder for EslCodec {
     }
 }
 
-fn parse_json_body(src: &[u8], body_length: usize) -> HashMap<String, String> {
-    let body = String::from_utf8_lossy(&src[2..body_length + 2]).to_string();
-    serde_json::from_str(&body).unwrap()
+fn parse_json_body(src: &[u8], body_length: usize) -> Result<HashMap<String, String>> {
+    let body = String::from_utf8_lossy(&src[2..body_length + 2]);
+    Ok(serde_json::from_str(&body)?)
 }
