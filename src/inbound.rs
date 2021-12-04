@@ -15,14 +15,15 @@ use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, FramedWrite};
 pub struct Inbound {
+    password: String,
     commands: Arc<Mutex<VecDeque<Sender<InboundResponse>>>>,
-    transport: Arc<Mutex<FramedWrite<OwnedWriteHalf, EslCodec>>>,
+    transport_rx: Arc<Mutex<FramedWrite<OwnedWriteHalf, EslCodec>>>,
     background_jobs: Arc<Mutex<HashMap<String, Sender<InboundResponse>>>>,
 }
 
 impl Inbound {
     pub async fn send_recv(&self, item: &[u8]) -> Result<InboundResponse> {
-        let mut transport = self.transport.lock().await;
+        let mut transport = self.transport_rx.lock().await;
         let _ = transport.send(item).await?;
         let (tx, rx) = channel();
         self.commands.lock().await.push_back(tx);
@@ -32,7 +33,10 @@ impl Inbound {
             Err(anyhow::anyhow!("send_recv failed"))
         }
     }
-    pub async fn new(socket: SocketAddr) -> Result<Self, tokio::io::Error> {
+    pub async fn new(
+        socket: SocketAddr,
+        password: impl ToString,
+    ) -> Result<Self, tokio::io::Error> {
         let stream = TcpStream::connect(socket).await?;
         // let sender = Arc::new(sender);
         let commands = Arc::new(Mutex::new(VecDeque::new()));
@@ -46,17 +50,17 @@ impl Inbound {
         let _ = transport_rx.next().await;
         println!("recv event: BEFORE");
         let connection = Self {
+            password: password.to_string(),
             commands,
             background_jobs,
-            transport: transport_tx,
+            transport_rx: transport_tx,
         };
         tokio::spawn(async move {
             loop {
-                let something = transport_rx.next().await;
-                if let Some(Ok(event)) = something {
+                if let Some(Ok(event)) = transport_rx.next().await {
                     if let InboundResponse::EventJson(data) = &event {
                         let my_hash_map: HashMap<String, String> =
-                            serde_json::from_str(&data).unwrap();
+                            serde_json::from_str(data).unwrap();
                         let job_uuid = my_hash_map.get("Job-UUID");
                         if let Some(job_uuid) = job_uuid {
                             if let Some(tx) = inner_background_jobs.lock().await.remove(job_uuid) {
@@ -73,7 +77,9 @@ impl Inbound {
                 }
             }
         });
-        let _ = connection.send_recv(b"auth ClueCon\n\n").await;
+        let _ = connection
+            .send_recv(format!("auth {}\n\n", connection.password).as_bytes())
+            .await;
         let _ = connection
             .send_recv(b"event json BACKGROUND_JOB CHANNEL_EXECUTE_COMPLETE\n\n")
             .await;
