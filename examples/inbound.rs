@@ -11,12 +11,21 @@ async fn main() -> Result<()> {
     let addr = "3.109.206.34:8021".parse().unwrap();
     info!("starting");
     let inbound = Inbound::new(addr).await?;
-    let reloadxml = inbound.send_recv(b"api reloadxml\n\n").await;
+    let reloadxml = inbound
+        .bgapi("originate user/1000 &conference(karan)")
+        .await;
     error!("reloadxml response : {:?}", reloadxml);
-    let sofia = inbound.send_recv(b"bgapi sofia status\n\n").await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let sofia = inbound
+        .bgapi("originate user/1000 &conference(karan)")
+        .await;
     error!("sofia response : {:?}", sofia);
-    let reloadxml = inbound.send_recv(b"api reloadxml\n\n").await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let reloadxml = inbound
+        .bgapi("originate user/1000 &conference(karan)")
+        .await;
     error!("reloadxml response : {:?}", reloadxml);
+    tokio::time::sleep(Duration::from_secs(2)).await;
     debug!("finished");
     tokio::time::sleep(Duration::from_secs(1)).await;
     Ok(())

@@ -2,6 +2,8 @@ use crate::io::{EslCodec, InboundResponse};
 use anyhow::Result;
 use futures::SinkExt;
 use log::debug;
+use log::error;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -15,6 +17,7 @@ use tokio_util::codec::{FramedRead, FramedWrite};
 pub struct Inbound {
     commands: Arc<Mutex<VecDeque<Sender<InboundResponse>>>>,
     transport: Arc<Mutex<FramedWrite<OwnedWriteHalf, EslCodec>>>,
+    background_jobs: Arc<Mutex<HashMap<String, Sender<InboundResponse>>>>,
 }
 
 impl Inbound {
@@ -34,6 +37,8 @@ impl Inbound {
         // let sender = Arc::new(sender);
         let commands = Arc::new(Mutex::new(VecDeque::new()));
         let inner_commands = Arc::clone(&commands);
+        let background_jobs = Arc::new(Mutex::new(HashMap::new()));
+        let inner_background_jobs = Arc::clone(&background_jobs);
         let my_coded = EslCodec {};
         let (read_half, write_half) = stream.into_split();
         let mut transport_rx = FramedRead::new(read_half, my_coded.clone());
@@ -42,14 +47,24 @@ impl Inbound {
         println!("recv event: BEFORE");
         let connection = Self {
             commands,
+            background_jobs,
             transport: transport_tx,
         };
         tokio::spawn(async move {
             loop {
                 let something = transport_rx.next().await;
                 if let Some(Ok(event)) = something {
-                    if let InboundResponse::EventJson(x) = event {
-                        debug!("continued");
+                    if let InboundResponse::EventJson(data) = &event {
+                        let my_hash_map: HashMap<String, String> =
+                            serde_json::from_str(&data).unwrap();
+                        let job_uuid = my_hash_map.get("Job-UUID");
+                        if let Some(job_uuid) = job_uuid {
+                            if let Some(tx) = inner_background_jobs.lock().await.remove(job_uuid) {
+                                error!("sending message in bgapi channel");
+                                let _ = tx.send(event).unwrap();
+                            }
+                            debug!("continued");
+                        }
                         continue;
                     }
                     if let Some(tx) = inner_commands.lock().await.pop_front() {
@@ -70,8 +85,19 @@ impl Inbound {
     pub async fn bgapi(&self, command: &str) -> Result<InboundResponse> {
         debug!("Send bgapi {}", command);
         let job_uuid = uuid::Uuid::new_v4().to_string();
+        let (tx, rx) = channel();
+        self.background_jobs
+            .lock()
+            .await
+            .insert(job_uuid.clone(), tx);
 
         self.send_recv(format!("bgapi {}\nJob-UUID: {}\n\n", command, job_uuid).as_bytes())
-            .await
+            .await?;
+
+        if let Ok(resp) = rx.await {
+            Ok(resp)
+        } else {
+            Err(anyhow::anyhow!("error in receiving bgapi"))
+        }
     }
 }

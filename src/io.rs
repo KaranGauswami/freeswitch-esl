@@ -85,7 +85,7 @@ impl Decoder for EslCodec {
                     }
                 }
                 "command/reply" => {
-                    let response = String::from_utf8_lossy(src).to_string();
+                    let response = String::from_utf8_lossy(&src[..(header_end - 1)]).to_string();
                     src.advance(header_end + 1);
                     info!("returned command/reply");
                     return Ok(Some(InboundResponse::Reply(response)));
