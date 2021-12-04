@@ -1,7 +1,7 @@
 use crate::io::{EslCodec, InboundResponse};
 use anyhow::Result;
 use futures::SinkExt;
-use log::{debug, error};
+use log::debug;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -48,7 +48,10 @@ impl Inbound {
             loop {
                 let something = transport_rx.next().await;
                 if let Some(Ok(event)) = something {
-                    error!("got event {:?}", event);
+                    if let InboundResponse::EventJson(x) = event {
+                        debug!("continued");
+                        continue;
+                    }
                     if let Some(tx) = inner_commands.lock().await.pop_front() {
                         let _ = tx.send(event).expect("msg");
                     }

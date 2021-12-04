@@ -20,6 +20,7 @@ pub enum InboundResponse {
     Auth,
     Reply(String),
     ApiResponse(String),
+    EventJson(String),
 }
 fn get_header_end(src: &bytes::BytesMut) -> Option<usize> {
     debug!("get_header_end:=>{:?}", src);
@@ -56,63 +57,70 @@ impl Decoder for EslCodec {
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         debug!("decode");
         let header_end = get_header_end(src);
-        if let Some(header_end) = header_end {
-            let headers = parse_header(&src[..(header_end - 1)])?;
-            if let Some(somes) = headers.get("Content-Type") {
-                match somes.as_str() {
-                    "auth/request" => {
-                        src.advance(src.len());
-                        debug!("returned auth");
-                        return Ok(Some(InboundResponse::Auth {}));
-                    }
-                    "api/response" => {
-                        if let Some(body_length) = headers.get("Content-Length") {
-                            let body_length = body_length.parse()?;
-                            let body = parse_body(&src[header_end..], body_length);
-                            error!("advancing");
-                            error!("src is {}", String::from_utf8_lossy(src));
-                            src.advance(src.len());
-                            debug!("returned api/response");
-                            return Ok(Some(InboundResponse::ApiResponse(body)));
-                        } else {
-                            panic!("content_length not found");
+        if header_end.is_none() {
+            return Ok(None);
+        }
+        let header_end = header_end.unwrap();
+        let headers = parse_header(&src[..(header_end - 1)])?;
+        if let Some(somes) = headers.get("Content-Type") {
+            match somes.as_str() {
+                "auth/request" => {
+                    src.advance(src.len());
+                    debug!("returned auth");
+                    return Ok(Some(InboundResponse::Auth {}));
+                }
+                "api/response" => {
+                    if let Some(body_length) = headers.get("Content-Length") {
+                        let body_length = body_length.parse()?;
+                        if src.len() < (header_end + 1) + body_length {
+                            println!("returned because size was not enough");
+                            return Ok(None);
                         }
-                    }
-                    "command/reply" => {
-                        let response = String::from_utf8_lossy(src).to_string();
-                        info!("{}", response);
-                        src.advance(src.len());
-                        info!("returned command/reply");
-                        return Ok(Some(InboundResponse::Reply(response)));
-                    }
-                    "text/event-json" => {
-                        if let Some(body_length) = headers.get("Content-Length") {
-                            let body_length = body_length.parse()?;
-                            let body = parse_json_body(&src[header_end..], body_length)?;
-                            error!("{:?}", body);
-                            let body = format!("{:?}", body);
-                            src.advance(src.len());
-                            debug!("returned api/response");
-                            return Ok(Some(InboundResponse::ApiResponse(body)));
-                        } else {
-                            panic!("content_length not found");
-                        }
-                    }
-                    _ => {
-                        info!("content-type {}", somes.as_str());
-                        panic!("not handled")
+                        let body = parse_body(&src[header_end..], body_length);
+                        src.advance(header_end + 1 + body_length);
+                        debug!("returned api/response");
+                        return Ok(Some(InboundResponse::ApiResponse(body)));
+                    } else {
+                        panic!("content_length not found");
                     }
                 }
+                "command/reply" => {
+                    let response = String::from_utf8_lossy(src).to_string();
+                    src.advance(header_end + 1);
+                    info!("returned command/reply");
+                    return Ok(Some(InboundResponse::Reply(response)));
+                }
+                "text/event-json" => {
+                    if let Some(body_length) = headers.get("Content-Length") {
+                        let body_length = body_length.parse()?;
+                        error!("src len is {}", src.len());
+                        error!("body len is {}", header_end + 1 + body_length);
+                        if src.len() < (header_end + 1) + body_length {
+                            println!("returned because size was not enough");
+                            return Ok(None);
+                        }
+                        let body = parse_json_body(&src[header_end..], body_length)?;
+                        error!("body is {}", header_end + 1 + body_length);
+                        let body = format!("{:?}", body);
+                        src.advance(src.len());
+                        debug!("returned api/response");
+                        return Ok(Some(InboundResponse::EventJson(body)));
+                    } else {
+                        panic!("content_length not found");
+                    }
+                }
+                _ => {
+                    info!("content-type {}", somes.as_str());
+                    panic!("not handled")
+                }
             }
-            panic!("should not reach here {:?}", headers);
-        } else {
-            debug!("when header is not there {:?}", src);
-            Ok(None)
         }
+        panic!("should not reach here {:?}", headers);
     }
 }
 
 fn parse_json_body(src: &[u8], body_length: usize) -> Result<HashMap<String, String>> {
-    let body = String::from_utf8_lossy(&src[2..body_length + 2]);
-    Ok(serde_json::from_str(&body)?)
+    let body = String::from_utf8_lossy(&src[1..body_length + 1]);
+    let response = serde_json::from_str(&body)?;
+    Ok(response)
 }
