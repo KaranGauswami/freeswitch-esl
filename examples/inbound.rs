@@ -10,11 +10,11 @@ async fn main() -> Result<()> {
 
     let addr = "3.109.206.34:8021".parse().unwrap();
     let inbound = Inbound::new(addr).await?;
-    let reloadxml = inbound.api("reloadxml").await;
+    let reloadxml = inbound.send_recv(b"api reloadxml\n\n").await;
     info!("reloadxml response : {:?}", reloadxml);
-    let sofia = inbound.api("sofia status").await;
+    let sofia = inbound.send_recv(b"api sofia status\n\n").await;
     info!("sofia response : {:?}", sofia);
-    let reloadxml = inbound.bgapi("reloadxml").await;
+    let reloadxml = inbound.send_recv(b"api reloadxml\n\n").await;
     info!("reloadxml response : {:?}", reloadxml);
     debug!("finished");
     tokio::time::sleep(Duration::from_secs(1)).await;

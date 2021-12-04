@@ -26,7 +26,7 @@ fn get_header_end(src: &bytes::BytesMut) -> Option<usize> {
     // get first new line character
     for (index, chat) in src[..].iter().enumerate() {
         if chat == &b'\n' && src.get(index + 1) == Some(&b'\n') {
-            return Some(index);
+            return Some(index + 1);
         }
     }
     None
@@ -55,11 +55,9 @@ impl Decoder for EslCodec {
     type Error = anyhow::Error;
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         debug!("decode");
-        let newline = get_header_end(src);
-        if let Some(x) = newline {
-            debug!("header end is {:?}", newline);
-            let headers = parse_header(&src[..x])?;
-            debug!("current remaining {:?}", String::from_utf8_lossy(&src[x..]));
+        let header_end = get_header_end(src);
+        if let Some(header_end) = header_end {
+            let headers = parse_header(&src[..(header_end - 1)])?;
             if let Some(somes) = headers.get("Content-Type") {
                 match somes.as_str() {
                     "auth/request" => {
@@ -70,7 +68,7 @@ impl Decoder for EslCodec {
                     "api/response" => {
                         if let Some(body_length) = headers.get("Content-Length") {
                             let body_length = body_length.parse()?;
-                            let body = parse_body(&src[x..], body_length);
+                            let body = parse_body(&src[header_end..], body_length);
                             error!("advancing");
                             error!("src is {}", String::from_utf8_lossy(src));
                             src.advance(src.len());
@@ -90,7 +88,7 @@ impl Decoder for EslCodec {
                     "text/event-json" => {
                         if let Some(body_length) = headers.get("Content-Length") {
                             let body_length = body_length.parse()?;
-                            let body = parse_json_body(&src[x..], body_length)?;
+                            let body = parse_json_body(&src[header_end..], body_length)?;
                             error!("{:?}", body);
                             let body = format!("{:?}", body);
                             src.advance(src.len());
