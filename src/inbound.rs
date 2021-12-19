@@ -5,10 +5,10 @@ use log::debug;
 use log::error;
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::tcp::OwnedWriteHalf;
 use tokio::net::TcpStream;
+use tokio::net::ToSocketAddrs;
 use tokio::sync::oneshot::channel;
 use tokio::sync::oneshot::Sender;
 use tokio::sync::Mutex;
@@ -34,7 +34,7 @@ impl Inbound {
         }
     }
     pub async fn new(
-        socket: SocketAddr,
+        socket: impl ToSocketAddrs,
         password: impl ToString,
     ) -> Result<Self, tokio::io::Error> {
         let stream = TcpStream::connect(socket).await?;
@@ -48,7 +48,6 @@ impl Inbound {
         let mut transport_rx = FramedRead::new(read_half, my_coded.clone());
         let transport_tx = Arc::new(Mutex::new(FramedWrite::new(write_half, my_coded.clone())));
         let _ = transport_rx.next().await;
-        println!("recv event: BEFORE");
         let connection = Self {
             password: password.to_string(),
             commands,
@@ -86,7 +85,8 @@ impl Inbound {
         Ok(connection)
     }
     pub async fn api(&self, command: &str) -> Result<InboundResponse> {
-        self.send_recv(command.as_bytes()).await
+        self.send_recv(format!("api {}\n\n", command).as_bytes())
+            .await
     }
     pub async fn bgapi(&self, command: &str) -> Result<InboundResponse> {
         debug!("Send bgapi {}", command);

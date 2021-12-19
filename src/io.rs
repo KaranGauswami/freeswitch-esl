@@ -73,7 +73,7 @@ impl Decoder for EslCodec {
                     if let Some(body_length) = headers.get("Content-Length") {
                         let body_length = body_length.parse()?;
                         if src.len() < (header_end + 1) + body_length {
-                            println!("returned because size was not enough");
+                            debug!("returned because size was not enough");
                             return Ok(None);
                         }
                         let body = parse_body(&src[header_end..], body_length);
@@ -96,7 +96,7 @@ impl Decoder for EslCodec {
                         error!("src len is {}", src.len());
                         error!("body len is {}", header_end + 1 + body_length);
                         if src.len() < (header_end + 1) + body_length {
-                            println!("returned because size was not enough");
+                            debug!("returned because size was not enough");
                             return Ok(None);
                         }
                         let body = parse_json_body(&src[header_end..], body_length)?;
@@ -111,7 +111,7 @@ impl Decoder for EslCodec {
                 }
                 _ => {
                     info!("content-type {}", somes.as_str());
-                    panic!("not handled")
+                    panic!("not handled {}", somes.as_str())
                 }
             }
         }
