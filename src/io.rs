@@ -62,6 +62,7 @@ impl Decoder for EslCodec {
         }
         let header_end = header_end.unwrap();
         let headers = parse_header(&src[..(header_end - 1)])?;
+        debug!("parsed headers are : {:?}", headers);
         if let Some(somes) = headers.get("Content-Type") {
             match somes.as_str() {
                 "auth/request" => {
@@ -102,8 +103,8 @@ impl Decoder for EslCodec {
                         let body = parse_json_body(&src[header_end..], body_length)?;
                         error!("body is {}", header_end + 1 + body_length);
                         let body = format!("{:?}", body);
-                        src.advance(src.len());
-                        debug!("returned api/response");
+                        src.advance(header_end + 1 + body_length);
+                        debug!("returned event/json");
                         return Ok(Some(InboundResponse::EventJson(body)));
                     } else {
                         panic!("content_length not found");
