@@ -1,29 +1,27 @@
-use crate::io::{EslCodec, InboundResponse};
+use crate::event::Event;
+use crate::io::EslCodec;
 use anyhow::Result;
 use futures::SinkExt;
 use log::debug;
-use log::error;
-use std::collections::HashMap;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use tokio::net::tcp::OwnedWriteHalf;
-use tokio::net::TcpStream;
-use tokio::net::ToSocketAddrs;
-use tokio::sync::oneshot::channel;
-use tokio::sync::oneshot::Sender;
-use tokio::sync::Mutex;
+use tokio::net::{tcp::OwnedWriteHalf, TcpStream, ToSocketAddrs};
+use tokio::sync::{
+    oneshot::{channel, Sender},
+    Mutex,
+};
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, FramedWrite};
 pub struct Inbound {
     password: String,
-    commands: Arc<Mutex<VecDeque<Sender<InboundResponse>>>>,
-    transport_rx: Arc<Mutex<FramedWrite<OwnedWriteHalf, EslCodec>>>,
-    background_jobs: Arc<Mutex<HashMap<String, Sender<InboundResponse>>>>,
+    commands: Arc<Mutex<VecDeque<Sender<Event>>>>,
+    transport_tx: Arc<Mutex<FramedWrite<OwnedWriteHalf, EslCodec>>>,
+    background_jobs: Arc<Mutex<HashMap<String, Sender<Event>>>>,
 }
 
 impl Inbound {
-    pub async fn send_recv(&self, item: &[u8]) -> Result<InboundResponse> {
-        let mut transport = self.transport_rx.lock().await;
+    pub async fn send_recv(&self, item: &[u8]) -> Result<Event> {
+        let mut transport = self.transport_tx.lock().await;
         let _ = transport.send(item).await?;
         let (tx, rx) = channel();
         self.commands.lock().await.push_back(tx);
@@ -47,28 +45,35 @@ impl Inbound {
         let (read_half, write_half) = stream.into_split();
         let mut transport_rx = FramedRead::new(read_half, my_coded.clone());
         let transport_tx = Arc::new(Mutex::new(FramedWrite::new(write_half, my_coded.clone())));
-        let _ = transport_rx.next().await;
+        transport_rx.next().await;
         let connection = Self {
             password: password.to_string(),
             commands,
             background_jobs,
-            transport_rx: transport_tx,
+            transport_tx,
         };
         tokio::spawn(async move {
             loop {
                 if let Some(Ok(event)) = transport_rx.next().await {
-                    if let InboundResponse::EventJson(data) = &event {
-                        let my_hash_map: HashMap<String, String> =
-                            serde_json::from_str(data).unwrap();
-                        let job_uuid = my_hash_map.get("Job-UUID");
-                        if let Some(job_uuid) = job_uuid {
-                            if let Some(tx) = inner_background_jobs.lock().await.remove(job_uuid) {
-                                error!("sending message in bgapi channel");
-                                let _ = tx.send(event).unwrap();
+                    if let Some(types) = event.headers.get("Content-Type") {
+                        if types == "text/event-json" {
+                            let data = event.body().expect("Unable to get body of event-json");
+
+                            let my_hash_map: HashMap<String, String> =
+                                parse_json_body(data).expect("Unable to parse body of event-json");
+                            let job_uuid = my_hash_map.get("Job-UUID");
+                            if let Some(job_uuid) = job_uuid {
+                                if let Some(tx) =
+                                    inner_background_jobs.lock().await.remove(job_uuid)
+                                {
+                                    let _ = tx
+                                        .send(event)
+                                        .expect("Unable to send channel message from bgapi");
+                                }
+                                debug!("continued");
                             }
-                            debug!("continued");
+                            continue;
                         }
-                        continue;
                     }
                     if let Some(tx) = inner_commands.lock().await.pop_front() {
                         let _ = tx.send(event).expect("msg");
@@ -76,19 +81,41 @@ impl Inbound {
                 }
             }
         });
+        // let auth_response = connection
+        //     .send_recv(format!("auth {}", connection.password).as_bytes())
+        //     .await;
+        let auth_response = connection.auth().await.expect("Invalid password");
+        debug!("auth_response {:?}", auth_response);
         let _ = connection
-            .send_recv(format!("auth {}\n\n", connection.password).as_bytes())
-            .await;
-        let _ = connection
-            .send_recv(b"event json BACKGROUND_JOB CHANNEL_EXECUTE_COMPLETE\n\n")
+            .send_recv(b"event json BACKGROUND_JOB CHANNEL_EXECUTE_COMPLETE")
             .await;
         Ok(connection)
     }
-    pub async fn api(&self, command: &str) -> Result<InboundResponse> {
-        self.send_recv(format!("api {}\n\n", command).as_bytes())
+    pub async fn auth(&self) -> Result<String> {
+        let auth_response = self
+            .send_recv(format!("auth {}", self.password).as_bytes())
             .await
+            .expect("Unable to send request");
+        let auth_headers = auth_response.headers();
+        let reply_text = auth_headers
+            .get("Reply-Text")
+            .expect("Unable to get reply/text in auth request");
+        let space_index = reply_text
+            .find(char::is_whitespace)
+            .expect("Unable to find space index.");
+        let code = &reply_text[..space_index];
+        let text_start = space_index + 1;
+        let text = reply_text[text_start..].to_string();
+        if code == "+OK" {
+            Ok(text)
+        } else {
+            Err(anyhow::anyhow!(text))
+        }
     }
-    pub async fn bgapi(&self, command: &str) -> Result<InboundResponse> {
+    pub async fn api(&self, command: &str) -> Result<Event> {
+        self.send_recv(format!("api {}", command).as_bytes()).await
+    }
+    pub async fn bgapi(&self, command: &str) -> Result<Event> {
         debug!("Send bgapi {}", command);
         let job_uuid = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = channel();
@@ -97,13 +124,31 @@ impl Inbound {
             .await
             .insert(job_uuid.clone(), tx);
 
-        self.send_recv(format!("bgapi {}\nJob-UUID: {}\n\n", command, job_uuid).as_bytes())
+        self.send_recv(format!("bgapi {}\nJob-UUID: {}", command, job_uuid).as_bytes())
             .await?;
 
         if let Ok(resp) = rx.await {
-            Ok(resp)
+            let body = resp.body().expect("Unable to get body of event-json");
+            let body_hashmap = parse_json_body(body)?;
+
+            let mut hsmp = resp.headers();
+            hsmp.extend(body_hashmap);
+            let body = hsmp
+                .get("_body")
+                .expect("Unable to get body for bgapi")
+                .clone();
+            let event = Event {
+                headers: hsmp,
+                body: Some(body),
+            };
+            Ok(event)
         } else {
-            Err(anyhow::anyhow!("error in receiving bgapi"))
+            Err(anyhow::anyhow!("Error in receiving bgapi"))
         }
     }
+}
+fn parse_json_body(
+    body: String,
+) -> core::result::Result<HashMap<String, String>, serde_json::Error> {
+    serde_json::from_str(&body)
 }

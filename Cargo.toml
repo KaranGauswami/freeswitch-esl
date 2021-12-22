@@ -13,10 +13,12 @@ log = { version = "0.4", features = [
     "release_max_level_warn",
 ] }
 anyhow = "1.0"
-env_logger = "0.9"
 bytes = "1.1"
 tokio-util = { version = "0.6", features = ["full"] }
 tokio-stream = "0.1"
 futures = "0.3"
 serde_json = "1.0"
 uuid = { version = "0.8", features = ["v4"] }
+
+[dev-dependencies]
+env_logger = "0.9"
