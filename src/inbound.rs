@@ -4,8 +4,10 @@ use anyhow::Result;
 use futures::SinkExt;
 use log::debug;
 use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
-use tokio::net::{tcp::OwnedWriteHalf, TcpStream, ToSocketAddrs};
+use std::sync::atomic::Ordering;
+use std::sync::{atomic::AtomicBool, Arc};
+use tokio::net::tcp::OwnedWriteHalf;
+use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::{
     oneshot::{channel, Sender},
     Mutex,
@@ -17,9 +19,13 @@ pub struct Inbound {
     commands: Arc<Mutex<VecDeque<Sender<Event>>>>,
     transport_tx: Arc<Mutex<FramedWrite<OwnedWriteHalf, EslCodec>>>,
     background_jobs: Arc<Mutex<HashMap<String, Sender<Event>>>>,
+    connected: AtomicBool,
 }
 
 impl Inbound {
+    pub fn connected(&self) -> bool {
+        self.connected.load(Ordering::Relaxed)
+    }
     pub async fn send_recv(&self, item: &[u8]) -> Result<Event> {
         let mut transport = self.transport_tx.lock().await;
         let _ = transport.send(item).await?;
@@ -31,11 +37,8 @@ impl Inbound {
             Err(anyhow::anyhow!("send_recv failed"))
         }
     }
-    pub async fn new(
-        socket: impl ToSocketAddrs,
-        password: impl ToString,
-    ) -> Result<Self, tokio::io::Error> {
-        let stream = TcpStream::connect(socket).await?;
+
+    pub async fn with_tcpstream(stream: TcpStream, password: impl ToString) -> Result<Self> {
         // let sender = Arc::new(sender);
         let commands = Arc::new(Mutex::new(VecDeque::new()));
         let inner_commands = Arc::clone(&commands);
@@ -51,6 +54,7 @@ impl Inbound {
             commands,
             background_jobs,
             transport_tx,
+            connected: AtomicBool::new(false),
         };
         tokio::spawn(async move {
             loop {
@@ -91,6 +95,13 @@ impl Inbound {
             .await;
         Ok(connection)
     }
+    pub async fn new(
+        socket: impl ToSocketAddrs,
+        password: impl ToString,
+    ) -> Result<Self, anyhow::Error> {
+        let stream = TcpStream::connect(socket).await?;
+        Self::with_tcpstream(stream, password).await
+    }
     pub async fn auth(&self) -> Result<String> {
         let auth_response = self
             .send_recv(format!("auth {}", self.password).as_bytes())
@@ -107,6 +118,7 @@ impl Inbound {
         let text_start = space_index + 1;
         let text = reply_text[text_start..].to_string();
         if code == "+OK" {
+            self.connected.store(true, Ordering::Relaxed);
             Ok(text)
         } else {
             Err(anyhow::anyhow!(text))
