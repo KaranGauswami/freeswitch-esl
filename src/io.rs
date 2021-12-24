@@ -70,14 +70,12 @@ impl Decoder for EslCodec {
             }
             let body = parse_body(&src[body_start..], body_length);
             src.advance(body_start + body_length);
-            debug!("returned api/response");
             Ok(Some(Event {
                 headers,
                 body: Some(body),
             }))
         } else {
             src.advance(body_start);
-            debug!("returned command/reply");
             Ok(Some(Event {
                 headers,
                 body: None,

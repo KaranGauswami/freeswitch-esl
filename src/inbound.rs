@@ -85,9 +85,6 @@ impl Inbound {
                 }
             }
         });
-        // let auth_response = connection
-        //     .send_recv(format!("auth {}", connection.password).as_bytes())
-        //     .await;
         let auth_response = connection.auth().await.expect("Invalid password");
         debug!("auth_response {:?}", auth_response);
         let _ = connection
