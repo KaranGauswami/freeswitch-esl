@@ -140,6 +140,9 @@ impl Inbound {
                 Ok(text)
             }
             Code::Err => Err(InboundError::AuthFailed),
+            Code::Unknown => Err(InboundError::InternalError(
+                "Got unknown code in auth request".into(),
+            )),
         }
     }
     pub async fn api(&self, command: &str) -> Result<String, InboundError> {
@@ -162,6 +165,7 @@ impl Inbound {
             match code {
                 Code::Ok => Ok(text),
                 Code::Err => Err(InboundError::ApiError(text)),
+                Code::Unknown => Ok(body.to_string()),
             }
         } else {
             panic!("Unable to receive event for api")
@@ -195,6 +199,7 @@ impl Inbound {
             match code {
                 Code::Ok => Ok(text),
                 Code::Err => Err(InboundError::ApiError(text)),
+                Code::Unknown => Ok(body.to_string()),
             }
         } else {
             Err(InboundError::InternalError("Unable to get event".into()))

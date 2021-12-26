@@ -57,7 +57,7 @@ impl Decoder for EslCodec {
         if header_end.is_none() {
             return Ok(None);
         }
-        let header_end = header_end.expect("Unable to get header end");
+        let header_end = header_end.unwrap();
         let headers = parse_header(&src[..(header_end - 1)])
             .map_err(|_| InboundError::InternalError("parse header error".into()))?;
         debug!("parsed headers are : {:?}", headers);

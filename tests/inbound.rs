@@ -105,3 +105,15 @@ async fn with_tcpstream() -> Result<(), InboundError> {
     assert_eq!(Ok("[Success]".into()), body);
     Ok(())
 }
+
+#[tokio::test]
+async fn restart_external_profile() -> Result<(), InboundError> {
+    let addr = "3.109.206.34:8021";
+    let inbound = Inbound::new(addr, "ClueCon").await?;
+    let body = inbound.api("sofia profile external restart").await;
+    assert_eq!(
+        Ok("Reload XML [Success]\nrestarting: external".into()),
+        body
+    );
+    Ok(())
+}

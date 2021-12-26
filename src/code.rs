@@ -1,9 +1,8 @@
-use crate::InboundError;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Code {
     Ok,
     Err,
+    Unknown,
 }
 
 pub trait ParseCode {
@@ -14,7 +13,7 @@ impl ParseCode for &str {
         match self {
             "+OK" => Ok(Code::Ok),
             "-ERR" => Ok(Code::Err),
-            _ => Err(InboundError::InternalError("code error".into())),
+            _ => Ok(Code::Unknown),
         }
     }
 }
