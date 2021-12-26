@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use bytes::Buf;
 use log::debug;
+use serde_json::Value;
 use tokio_util::codec::{Decoder, Encoder};
 
 use crate::{event::Event, InboundError};
@@ -33,7 +34,7 @@ fn parse_body(src: &[u8], length: usize) -> String {
     debug!("length src : {}", length);
     String::from_utf8_lossy(&src[..length]).to_string()
 }
-fn parse_header(src: &[u8]) -> Result<HashMap<String, String>, std::io::Error> {
+fn parse_header(src: &[u8]) -> Result<HashMap<String, Value>, std::io::Error> {
     debug!("parsing this header {:#?}", String::from_utf8_lossy(src));
     let data = String::from_utf8_lossy(src).to_string();
     let a = data.split('\n');
@@ -42,7 +43,7 @@ fn parse_header(src: &[u8]) -> Result<HashMap<String, String>, std::io::Error> {
         let mut key_value = line.split(':');
         let key = key_value.next().unwrap().trim().to_string();
         let val = key_value.next().unwrap().trim().to_string();
-        hash.insert(key, val);
+        hash.insert(key, serde_json::json!(val));
     }
     debug!("returning hashmap : {:?}", hash);
     Ok(hash)
@@ -63,6 +64,7 @@ impl Decoder for EslCodec {
         debug!("parsed headers are : {:?}", headers);
         let body_start = header_end + 1;
         if let Some(length) = headers.get("Content-Length") {
+            let length = length.as_str().unwrap();
             let body_length = length
                 .parse()
                 .map_err(|_| InboundError::InternalError("parsing error".into()))?;

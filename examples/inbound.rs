@@ -6,10 +6,11 @@ async fn main() -> Result<(), InboundError> {
     let password = "ClueCon";
     let inbound = Inbound::new(addr, password).await?;
 
-    let reloadxml = inbound.api("reloadxml").await?;
-    println!("reloadxml response : {:?}", reloadxml);
-
-    let reloadxml = inbound.bgapi("reloadxml").await?;
-    println!("reloadxml response : {:?}", reloadxml);
+    let uuid = inbound
+        .api("originate {origination_uuid=karan}loopback/1000 &conference(karan)")
+        .await?;
+    println!("{:?}", uuid);
+    let reloadxml = inbound.api(&format!("uuid_kill karan")).await?;
+    println!("{:?}", reloadxml);
     Ok(())
 }

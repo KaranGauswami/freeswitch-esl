@@ -4,6 +4,7 @@ use crate::event::Event;
 use crate::io::EslCodec;
 use futures::SinkExt;
 use log::debug;
+use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
 use std::sync::{atomic::AtomicBool, Arc};
@@ -72,10 +73,11 @@ impl Inbound {
                         if types == "text/event-json" {
                             let data = event.body().expect("Unable to get body of event-json");
 
-                            let my_hash_map: HashMap<String, String> =
+                            let my_hash_map =
                                 parse_json_body(data).expect("Unable to parse body of event-json");
                             let job_uuid = my_hash_map.get("Job-UUID");
                             if let Some(job_uuid) = job_uuid {
+                                let job_uuid = job_uuid.as_str().unwrap();
                                 if let Some(tx) =
                                     inner_background_jobs.lock().await.remove(job_uuid)
                                 {
@@ -124,6 +126,7 @@ impl Inbound {
             .ok_or(InboundError::InternalError(
                 "Reply-Text in auth request was not found".into(),
             ))?;
+        let reply_text = reply_text.as_str().unwrap();
         let space_index =
             reply_text
                 .find(char::is_whitespace)
@@ -157,11 +160,16 @@ impl Inbound {
                 .ok_or(InboundError::InternalError(
                     "Unable to find space index".into(),
                 ))?;
+            println!("space index is {}", space_index);
             let code = &body[..space_index];
             let code = code.parse_code()?;
             let text_start = space_index + 1;
             let body_length = body.len();
-            let text = body[text_start..(body_length - 1)].to_string();
+            let text = if text_start < (body_length - 1) {
+                body[text_start..(body_length - 1)].to_string()
+            } else {
+                "".to_string()
+            };
             match code {
                 Code::Ok => Ok(text),
                 Code::Err => Err(InboundError::ApiError(text)),
@@ -195,6 +203,7 @@ impl Inbound {
             let body = hsmp.get("_body").ok_or(InboundError::InternalError(
                 "body was not found in event/json".into(),
             ))?;
+            let body = body.as_str().unwrap();
             let (code, text) = parse_api_response(body)?;
             match code {
                 Code::Ok => Ok(text),
@@ -219,7 +228,7 @@ fn parse_api_response<'a>(body: &'a str) -> Result<(Code, String), InboundError>
     let code = code.parse_code()?;
     Ok((code, text))
 }
-fn parse_json_body(body: String) -> Result<HashMap<String, String>, InboundError> {
+fn parse_json_body(body: String) -> Result<HashMap<String, Value>, InboundError> {
     serde_json::from_str(&body)
         .map_err(|_| InboundError::InternalError("Unable to parse json event".into()))
 }
