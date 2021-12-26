@@ -14,7 +14,7 @@ impl ParseCode for &str {
         match self {
             "+OK" => Ok(Code::Ok),
             "-ERR" => Ok(Code::Err),
-            _ => Err(InboundError::Unknown("code error".into())),
+            _ => Err(InboundError::InternalError("code error".into())),
         }
     }
 }

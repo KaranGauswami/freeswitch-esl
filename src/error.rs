@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Clone, Debug, PartialEq, Ord, PartialOrd, Eq, Hash, Error)]
 pub enum InboundError {
     #[error("unknown error")]
-    Unknown(String),
+    InternalError(String),
 
     #[error("Wrong password.")]
     AuthFailed,
@@ -20,6 +20,6 @@ pub enum InboundError {
 
 impl From<std::io::Error> for InboundError {
     fn from(error: std::io::Error) -> Self {
-        Self::Unknown(error.to_string())
+        Self::InternalError(error.to_string())
     }
 }

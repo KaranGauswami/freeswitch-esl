@@ -28,19 +28,20 @@ impl Inbound {
     pub fn connected(&self) -> bool {
         self.connected.load(Ordering::Relaxed)
     }
-    pub async fn send_recv(&self, item: &[u8]) -> Result<Event, InboundError> {
+    pub async fn send(&self, item: &[u8]) -> Result<(), InboundError> {
         let mut transport = self.transport_tx.lock().await;
-        let _ = transport
+        transport
             .send(item)
             .await
-            .map_err(|_error| InboundError::Unknown("unable to send item".to_string()));
+            .map_err(|_error| InboundError::InternalError("unable to send item".to_string()))
+    }
+    pub async fn send_recv(&self, item: &[u8]) -> Result<Event, InboundError> {
+        self.send(item).await?;
         let (tx, rx) = channel();
         self.commands.lock().await.push_back(tx);
-        if let Ok(data) = rx.await {
-            Ok(data)
-        } else {
-            Err(InboundError::Unknown("Unable to receive event".to_string()))
-        }
+        rx.await.map_err(|_error| {
+            InboundError::InternalError("Unable to receive send_recv event from channel".into())
+        })
     }
 
     pub async fn with_tcpstream(
@@ -95,10 +96,14 @@ impl Inbound {
         });
         let auth_response = connection.auth().await?;
         debug!("auth_response {:?}", auth_response);
-        let _ = connection
-            .send_recv(b"event json BACKGROUND_JOB CHANNEL_EXECUTE_COMPLETE")
-            .await;
+        connection
+            .subscribe(vec!["BACKGROUND_JOB", "CHANNEL_EXECUTE_COMPLETE"])
+            .await?;
         Ok(connection)
+    }
+    pub async fn subscribe(&self, events: Vec<&str>) -> Result<Event, InboundError> {
+        let message = String::from(format!("event json {}", events.join(" ")));
+        self.send_recv(message.as_bytes()).await
     }
     pub async fn new(
         socket: impl ToSocketAddrs,
@@ -112,15 +117,19 @@ impl Inbound {
     pub async fn auth(&self) -> Result<String, InboundError> {
         let auth_response = self
             .send_recv(format!("auth {}", self.password).as_bytes())
-            .await
-            .expect("Unable to send request");
+            .await?;
         let auth_headers = auth_response.headers();
         let reply_text = auth_headers
             .get("Reply-Text")
-            .expect("Unable to get reply/text in auth request");
-        let space_index = reply_text
-            .find(char::is_whitespace)
-            .expect("Unable to find space index.");
+            .ok_or(InboundError::InternalError(
+                "Reply-Text in auth request was not found".into(),
+            ))?;
+        let space_index =
+            reply_text
+                .find(char::is_whitespace)
+                .ok_or(InboundError::InternalError(
+                    "Unable to find space index".into(),
+                ))?;
         let code = &reply_text[..space_index];
         let code = code.parse_code()?;
         let text_start = space_index + 1;
@@ -136,10 +145,15 @@ impl Inbound {
     pub async fn api(&self, command: &str) -> Result<String, InboundError> {
         let response = self.send_recv(format!("api {}", command).as_bytes()).await;
         if let Ok(event) = response {
-            let body = event.body.expect("Didnt get body in api response");
+            let body = event.body.ok_or(InboundError::InternalError(
+                "Didnt get body in api response".into(),
+            ))?;
+
             let space_index = body
                 .find(char::is_whitespace)
-                .expect("Unable to find space index.");
+                .ok_or(InboundError::InternalError(
+                    "Unable to find space index".into(),
+                ))?;
             let code = &body[..space_index];
             let code = code.parse_code()?;
             let text_start = space_index + 1;
@@ -166,33 +180,41 @@ impl Inbound {
             .await?;
 
         if let Ok(resp) = rx.await {
-            let body = resp.body().expect("Unable to get body of event-json");
+            let body = resp.body().ok_or(InboundError::InternalError(
+                "body was not found in event/json".into(),
+            ))?;
+
             let body_hashmap = parse_json_body(body)?;
 
             let mut hsmp = resp.headers();
             hsmp.extend(body_hashmap);
-            let body = hsmp
-                .get("_body")
-                .expect("Unable to get body for bgapi")
-                .clone();
-            let space_index = body
-                .find(char::is_whitespace)
-                .expect("Unable to find space index.");
-            let code = &body[..space_index];
-            let code = code.parse_code()?;
-            let text_start = space_index + 1;
-            let body_length = body.len();
-            let text = body[text_start..(body_length - 1)].to_string();
+            let body = hsmp.get("_body").ok_or(InboundError::InternalError(
+                "body was not found in event/json".into(),
+            ))?;
+            let (code, text) = parse_api_response(body)?;
             match code {
                 Code::Ok => Ok(text),
                 Code::Err => Err(InboundError::ApiError(text)),
             }
         } else {
-            Err(InboundError::Unknown("Unable to get event".into()))
+            Err(InboundError::InternalError("Unable to get event".into()))
         }
     }
 }
+fn parse_api_response<'a>(body: &'a str) -> Result<(Code, String), InboundError> {
+    let space_index = body
+        .find(char::is_whitespace)
+        .ok_or(InboundError::InternalError(
+            "Unable to find space index".into(),
+        ))?;
+    let code = &body[..space_index];
+    let text_start = space_index + 1;
+    let body_length = body.len();
+    let text = body[text_start..(body_length - 1)].to_string();
+    let code = code.parse_code()?;
+    Ok((code, text))
+}
 fn parse_json_body(body: String) -> Result<HashMap<String, String>, InboundError> {
     serde_json::from_str(&body)
-        .map_err(|_| InboundError::Unknown("Unable to parse json event".into()))
+        .map_err(|_| InboundError::InternalError("Unable to parse json event".into()))
 }
