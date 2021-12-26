@@ -1,3 +1,4 @@
+use crate::code::{Code, ParseCode};
 use crate::error::InboundError;
 use crate::event::Event;
 use crate::io::EslCodec;
@@ -121,13 +122,15 @@ impl Inbound {
             .find(char::is_whitespace)
             .expect("Unable to find space index.");
         let code = &reply_text[..space_index];
+        let code = code.parse_code()?;
         let text_start = space_index + 1;
         let text = reply_text[text_start..].to_string();
-        if code == "+OK" {
-            self.connected.store(true, Ordering::Relaxed);
-            Ok(text)
-        } else {
-            Err(InboundError::AuthFailed)
+        match code {
+            Code::Ok => {
+                self.connected.store(true, Ordering::Relaxed);
+                Ok(text)
+            }
+            Code::Err => Err(InboundError::AuthFailed),
         }
     }
     pub async fn api(&self, command: &str) -> Result<String, InboundError> {
@@ -138,13 +141,13 @@ impl Inbound {
                 .find(char::is_whitespace)
                 .expect("Unable to find space index.");
             let code = &body[..space_index];
+            let code = code.parse_code()?;
             let text_start = space_index + 1;
             let body_length = body.len();
             let text = body[text_start..(body_length - 1)].to_string();
-            if code == "+OK" {
-                return Ok(text);
-            } else {
-                return Err(InboundError::ApiError(text));
+            match code {
+                Code::Ok => Ok(text),
+                Code::Err => Err(InboundError::ApiError(text)),
             }
         } else {
             panic!("Unable to receive event for api")
@@ -176,13 +179,13 @@ impl Inbound {
                 .find(char::is_whitespace)
                 .expect("Unable to find space index.");
             let code = &body[..space_index];
+            let code = code.parse_code()?;
             let text_start = space_index + 1;
             let body_length = body.len();
             let text = body[text_start..(body_length - 1)].to_string();
-            if code == "+OK" {
-                return Ok(text);
-            } else {
-                return Err(InboundError::ApiError(text));
+            match code {
+                Code::Ok => Ok(text),
+                Code::Err => Err(InboundError::ApiError(text)),
             }
         } else {
             Err(InboundError::Unknown("Unable to get event".into()))

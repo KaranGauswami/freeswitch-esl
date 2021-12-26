@@ -13,6 +13,9 @@ pub enum InboundError {
 
     #[error("{0:?}")]
     ApiError(String),
+
+    #[error("")]
+    CodeParseError(),
 }
 
 impl From<std::io::Error> for InboundError {

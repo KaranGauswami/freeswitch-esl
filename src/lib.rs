@@ -1,4 +1,5 @@
 // #[deny(warnings)]
+pub mod code;
 pub mod error;
 pub mod event;
 pub mod inbound;
