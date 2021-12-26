@@ -1,17 +1,16 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
 use bytes::Buf;
 use log::debug;
 use tokio_util::codec::{Decoder, Encoder};
 
-use crate::event::Event;
+use crate::{event::Event, InboundError};
 
 #[derive(Debug, Clone)]
 pub struct EslCodec {}
 
 impl Encoder<&[u8]> for EslCodec {
-    type Error = tokio::io::Error;
+    type Error = InboundError;
     fn encode(&mut self, item: &[u8], dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
         dst.extend_from_slice(item);
         dst.extend_from_slice(b"\n\n");
@@ -34,7 +33,7 @@ fn parse_body(src: &[u8], length: usize) -> String {
     debug!("length src : {}", length);
     String::from_utf8_lossy(&src[..length]).to_string()
 }
-fn parse_header(src: &[u8]) -> Result<HashMap<String, String>> {
+fn parse_header(src: &[u8]) -> Result<HashMap<String, String>, std::io::Error> {
     debug!("parsing this header {:#?}", String::from_utf8_lossy(src));
     let data = String::from_utf8_lossy(src).to_string();
     let a = data.split('\n');
@@ -51,7 +50,7 @@ fn parse_header(src: &[u8]) -> Result<HashMap<String, String>> {
 
 impl Decoder for EslCodec {
     type Item = Event;
-    type Error = anyhow::Error;
+    type Error = InboundError;
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         debug!("decode");
         let header_end = get_header_end(src);
@@ -59,11 +58,14 @@ impl Decoder for EslCodec {
             return Ok(None);
         }
         let header_end = header_end.expect("Unable to get header end");
-        let headers = parse_header(&src[..(header_end - 1)])?;
+        let headers = parse_header(&src[..(header_end - 1)])
+            .map_err(|_| InboundError::Unknown("parse header error".into()))?;
         debug!("parsed headers are : {:?}", headers);
         let body_start = header_end + 1;
         if let Some(length) = headers.get("Content-Length") {
-            let body_length = length.parse()?;
+            let body_length = length
+                .parse()
+                .map_err(|_| InboundError::Unknown("parsing error".into()))?;
             if src.len() < (header_end + body_length + 1) {
                 debug!("returned because size was not enough");
                 return Ok(None);

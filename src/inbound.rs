@@ -1,6 +1,6 @@
+use crate::error::InboundError;
 use crate::event::Event;
 use crate::io::EslCodec;
-use anyhow::Result;
 use futures::SinkExt;
 use log::debug;
 use std::collections::{HashMap, VecDeque};
@@ -14,6 +14,7 @@ use tokio::sync::{
 };
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, FramedWrite};
+#[derive(Debug)]
 pub struct Inbound {
     password: String,
     commands: Arc<Mutex<VecDeque<Sender<Event>>>>,
@@ -26,19 +27,25 @@ impl Inbound {
     pub fn connected(&self) -> bool {
         self.connected.load(Ordering::Relaxed)
     }
-    pub async fn send_recv(&self, item: &[u8]) -> Result<Event> {
+    pub async fn send_recv(&self, item: &[u8]) -> Result<Event, InboundError> {
         let mut transport = self.transport_tx.lock().await;
-        let _ = transport.send(item).await?;
+        let _ = transport
+            .send(item)
+            .await
+            .map_err(|_error| InboundError::Unknown("unable to send item".to_string()));
         let (tx, rx) = channel();
         self.commands.lock().await.push_back(tx);
         if let Ok(data) = rx.await {
             Ok(data)
         } else {
-            Err(anyhow::anyhow!("send_recv failed"))
+            Err(InboundError::Unknown("Unable to receive event".to_string()))
         }
     }
 
-    pub async fn with_tcpstream(stream: TcpStream, password: impl ToString) -> Result<Self> {
+    pub async fn with_tcpstream(
+        stream: TcpStream,
+        password: impl ToString,
+    ) -> Result<Self, InboundError> {
         // let sender = Arc::new(sender);
         let commands = Arc::new(Mutex::new(VecDeque::new()));
         let inner_commands = Arc::clone(&commands);
@@ -85,7 +92,7 @@ impl Inbound {
                 }
             }
         });
-        let auth_response = connection.auth().await.expect("Invalid password");
+        let auth_response = connection.auth().await?;
         debug!("auth_response {:?}", auth_response);
         let _ = connection
             .send_recv(b"event json BACKGROUND_JOB CHANNEL_EXECUTE_COMPLETE")
@@ -95,11 +102,13 @@ impl Inbound {
     pub async fn new(
         socket: impl ToSocketAddrs,
         password: impl ToString,
-    ) -> Result<Self, anyhow::Error> {
-        let stream = TcpStream::connect(socket).await?;
+    ) -> Result<Self, InboundError> {
+        let stream = TcpStream::connect(socket)
+            .await
+            .map_err(|error| InboundError::ConnectionError(error.to_string()))?;
         Self::with_tcpstream(stream, password).await
     }
-    pub async fn auth(&self) -> Result<String> {
+    pub async fn auth(&self) -> Result<String, InboundError> {
         let auth_response = self
             .send_recv(format!("auth {}", self.password).as_bytes())
             .await
@@ -118,13 +127,30 @@ impl Inbound {
             self.connected.store(true, Ordering::Relaxed);
             Ok(text)
         } else {
-            Err(anyhow::anyhow!(text))
+            Err(InboundError::AuthFailed)
         }
     }
-    pub async fn api(&self, command: &str) -> Result<Event> {
-        self.send_recv(format!("api {}", command).as_bytes()).await
+    pub async fn api(&self, command: &str) -> Result<String, InboundError> {
+        let response = self.send_recv(format!("api {}", command).as_bytes()).await;
+        if let Ok(event) = response {
+            let body = event.body.expect("Didnt get body in api response");
+            let space_index = body
+                .find(char::is_whitespace)
+                .expect("Unable to find space index.");
+            let code = &body[..space_index];
+            let text_start = space_index + 1;
+            let body_length = body.len();
+            let text = body[text_start..(body_length - 1)].to_string();
+            if code == "+OK" {
+                return Ok(text);
+            } else {
+                return Err(InboundError::ApiError(text));
+            }
+        } else {
+            panic!("Unable to receive event for api")
+        }
     }
-    pub async fn bgapi(&self, command: &str) -> Result<Event> {
+    pub async fn bgapi(&self, command: &str) -> Result<String, InboundError> {
         debug!("Send bgapi {}", command);
         let job_uuid = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = channel();
@@ -146,18 +172,24 @@ impl Inbound {
                 .get("_body")
                 .expect("Unable to get body for bgapi")
                 .clone();
-            let event = Event {
-                headers: hsmp,
-                body: Some(body),
-            };
-            Ok(event)
+            let space_index = body
+                .find(char::is_whitespace)
+                .expect("Unable to find space index.");
+            let code = &body[..space_index];
+            let text_start = space_index + 1;
+            let body_length = body.len();
+            let text = body[text_start..(body_length - 1)].to_string();
+            if code == "+OK" {
+                return Ok(text);
+            } else {
+                return Err(InboundError::ApiError(text));
+            }
         } else {
-            Err(anyhow::anyhow!("Error in receiving bgapi"))
+            Err(InboundError::Unknown("Unable to get event".into()))
         }
     }
 }
-fn parse_json_body(
-    body: String,
-) -> core::result::Result<HashMap<String, String>, serde_json::Error> {
+fn parse_json_body(body: String) -> Result<HashMap<String, String>, InboundError> {
     serde_json::from_str(&body)
+        .map_err(|_| InboundError::Unknown("Unable to parse json event".into()))
 }
