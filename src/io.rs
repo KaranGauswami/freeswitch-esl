@@ -59,15 +59,12 @@ impl Decoder for EslCodec {
             return Ok(None);
         }
         let header_end = header_end.unwrap();
-        let headers = parse_header(&src[..(header_end - 1)])
-            .map_err(|_| InboundError::InternalError("parse header error".into()))?;
+        let headers = parse_header(&src[..(header_end - 1)])?;
         debug!("parsed headers are : {:?}", headers);
         let body_start = header_end + 1;
         if let Some(length) = headers.get("Content-Length") {
             let length = length.as_str().unwrap();
-            let body_length = length
-                .parse()
-                .map_err(|_| InboundError::InternalError("parsing error".into()))?;
+            let body_length = length.parse()?;
             if src.len() < (header_end + body_length + 1) {
                 debug!("returned because size was not enough");
                 return Ok(None);

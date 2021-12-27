@@ -117,3 +117,18 @@ async fn restart_external_profile() -> Result<(), InboundError> {
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn uuid_kill() -> Result<(), InboundError> {
+    let addr = "3.109.206.34:8021"; // Freeswitch host
+    let password = "ClueCon";
+    let inbound = Inbound::new(addr, password).await?;
+
+    let uuid = inbound
+        .api("originate {origination_uuid=karan}loopback/1000 &conference(karan)")
+        .await?;
+    assert_eq!("karan", uuid);
+    let uuid_kill_response = inbound.api(&format!("uuid_kill karan")).await?;
+    assert_eq!("", uuid_kill_response);
+    Ok(())
+}
