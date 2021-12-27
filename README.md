@@ -12,8 +12,8 @@ use freeswitch_esl::{inbound::Inbound, InboundError};
 
 #[tokio::main]
 async fn main() -> Result<(), InboundError> {
-    let addr = "3.109.206.34:8021"; // Freeswitch host
-    let password = "ClueCon";
+    let addr = "localhost:8021"; // Freeswitch ESL host
+    let password = "ClueCon";    // Freeswitch ESL password
     let inbound = Inbound::new(addr, password).await?;
 
     let reloadxml = inbound.api("reloadxml").await?;
