@@ -137,19 +137,16 @@ impl Inbound {
     }
     pub async fn api(&self, command: &str) -> Result<String, InboundError> {
         let response = self.send_recv(format!("api {}", command).as_bytes()).await;
-        if let Ok(event) = response {
-            let body = event.body.ok_or_else(|| {
-                InboundError::InternalError("Didnt get body in api response".into())
-            })?;
+        let event = response?;
+        let body = event
+            .body
+            .ok_or_else(|| InboundError::InternalError("Didnt get body in api response".into()))?;
 
-            let (code, text) = parse_api_response(&body)?;
-            match code {
-                Code::Ok => Ok(text),
-                Code::Err => Err(InboundError::ApiError(text)),
-                Code::Unknown => Ok(body),
-            }
-        } else {
-            panic!("Unable to receive event for api")
+        let (code, text) = parse_api_response(&body)?;
+        match code {
+            Code::Ok => Ok(text),
+            Code::Err => Err(InboundError::ApiError(text)),
+            Code::Unknown => Ok(body),
         }
     }
     pub async fn bgapi(&self, command: &str) -> Result<String, InboundError> {
