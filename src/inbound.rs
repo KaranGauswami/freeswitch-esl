@@ -26,6 +26,11 @@ pub struct Inbound {
 }
 
 impl Inbound {
+    pub async fn disconnect(self) -> Result<(), InboundError> {
+        self.send_recv(b"exit").await?;
+        self.connected.store(false, Ordering::Relaxed);
+        Ok(())
+    }
     pub fn connected(&self) -> bool {
         self.connected.load(Ordering::Relaxed)
     }
@@ -49,10 +54,10 @@ impl Inbound {
         let inner_commands = Arc::clone(&commands);
         let background_jobs = Arc::new(Mutex::new(HashMap::new()));
         let inner_background_jobs = Arc::clone(&background_jobs);
-        let my_coded = EslCodec {};
+        let esl_codec = EslCodec {};
         let (read_half, write_half) = stream.into_split();
-        let mut transport_rx = FramedRead::new(read_half, my_coded.clone());
-        let transport_tx = Arc::new(Mutex::new(FramedWrite::new(write_half, my_coded.clone())));
+        let mut transport_rx = FramedRead::new(read_half, esl_codec.clone());
+        let transport_tx = Arc::new(Mutex::new(FramedWrite::new(write_half, esl_codec.clone())));
         transport_rx.next().await;
         let connection = Self {
             password: password.to_string(),
