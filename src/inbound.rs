@@ -164,27 +164,24 @@ impl Inbound {
         self.send_recv(format!("bgapi {}\nJob-UUID: {}", command, job_uuid).as_bytes())
             .await?;
 
-        if let Ok(resp) = rx.await {
-            let body = resp.body().ok_or_else(|| {
-                InboundError::InternalError("body was not found in event/json".into())
-            })?;
+        let resp = rx.await?;
+        let body = resp.body().ok_or_else(|| {
+            InboundError::InternalError("body was not found in event/json".into())
+        })?;
 
-            let body_hashmap = parse_json_body(body)?;
+        let body_hashmap = parse_json_body(body)?;
 
-            let mut hsmp = resp.headers();
-            hsmp.extend(body_hashmap);
-            let body = hsmp.get("_body").ok_or_else(|| {
-                InboundError::InternalError("body was not found in event/json".into())
-            })?;
-            let body = body.as_str().unwrap();
-            let (code, text) = parse_api_response(body)?;
-            match code {
-                Code::Ok => Ok(text),
-                Code::Err => Err(InboundError::ApiError(text)),
-                Code::Unknown => Ok(body.to_string()),
-            }
-        } else {
-            Err(InboundError::InternalError("Unable to get event".into()))
+        let mut hsmp = resp.headers();
+        hsmp.extend(body_hashmap);
+        let body = hsmp.get("_body").ok_or_else(|| {
+            InboundError::InternalError("body was not found in event/json".into())
+        })?;
+        let body = body.as_str().unwrap();
+        let (code, text) = parse_api_response(body)?;
+        match code {
+            Code::Ok => Ok(text),
+            Code::Err => Err(InboundError::ApiError(text)),
+            Code::Unknown => Ok(body.to_string()),
         }
     }
 }
