@@ -3,7 +3,7 @@ use crate::error::InboundError;
 use crate::event::Event;
 use crate::io::EslCodec;
 use futures::SinkExt;
-use log::debug;
+use log::trace;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
@@ -73,9 +73,9 @@ impl Inbound {
                         if types == "text/event-json" {
                             let data = event.body().expect("Unable to get body of event-json");
 
-                            let my_hash_map =
+                            let event_body =
                                 parse_json_body(data).expect("Unable to parse body of event-json");
-                            let job_uuid = my_hash_map.get("Job-UUID");
+                            let job_uuid = event_body.get("Job-UUID");
                             if let Some(job_uuid) = job_uuid {
                                 let job_uuid = job_uuid.as_str().unwrap();
                                 if let Some(tx) =
@@ -85,7 +85,7 @@ impl Inbound {
                                         .send(event)
                                         .expect("Unable to send channel message from bgapi");
                                 }
-                                debug!("continued");
+                                trace!("continued");
                             }
                             continue;
                         }
@@ -97,7 +97,7 @@ impl Inbound {
             }
         });
         let auth_response = connection.auth().await?;
-        debug!("auth_response {:?}", auth_response);
+        trace!("auth_response {:?}", auth_response);
         connection
             .subscribe(vec!["BACKGROUND_JOB", "CHANNEL_EXECUTE_COMPLETE"])
             .await?;
@@ -150,7 +150,7 @@ impl Inbound {
         }
     }
     pub async fn bgapi(&self, command: &str) -> Result<String, InboundError> {
-        debug!("Send bgapi {}", command);
+        trace!("Send bgapi {}", command);
         let job_uuid = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = channel();
         self.background_jobs

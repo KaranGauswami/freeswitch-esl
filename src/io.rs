@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bytes::Buf;
-use log::debug;
+use log::trace;
 use serde_json::Value;
 use tokio_util::codec::{Decoder, Encoder};
 
@@ -20,7 +20,7 @@ impl Encoder<&[u8]> for EslCodec {
 }
 
 fn get_header_end(src: &bytes::BytesMut) -> Option<usize> {
-    debug!("get_header_end:=>{:?}", src);
+    trace!("get_header_end:=>{:?}", src);
     // get first new line character
     for (index, chat) in src[..].iter().enumerate() {
         if chat == &b'\n' && src.get(index + 1) == Some(&b'\n') {
@@ -30,12 +30,12 @@ fn get_header_end(src: &bytes::BytesMut) -> Option<usize> {
     None
 }
 fn parse_body(src: &[u8], length: usize) -> String {
-    debug!("parse body src : {}", String::from_utf8_lossy(src));
-    debug!("length src : {}", length);
+    trace!("parse body src : {}", String::from_utf8_lossy(src));
+    trace!("length src : {}", length);
     String::from_utf8_lossy(&src[..length]).to_string()
 }
 fn parse_header(src: &[u8]) -> Result<HashMap<String, Value>, std::io::Error> {
-    debug!("parsing this header {:#?}", String::from_utf8_lossy(src));
+    trace!("parsing this header {:#?}", String::from_utf8_lossy(src));
     let data = String::from_utf8_lossy(src).to_string();
     let a = data.split('\n');
     let mut hash = HashMap::new();
@@ -45,7 +45,7 @@ fn parse_header(src: &[u8]) -> Result<HashMap<String, Value>, std::io::Error> {
         let val = key_value.next().unwrap().trim().to_string();
         hash.insert(key, serde_json::json!(val));
     }
-    debug!("returning hashmap : {:?}", hash);
+    trace!("returning hashmap : {:?}", hash);
     Ok(hash)
 }
 
@@ -53,20 +53,20 @@ impl Decoder for EslCodec {
     type Item = Event;
     type Error = InboundError;
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        debug!("decode");
+        trace!("decode");
         let header_end = get_header_end(src);
         if header_end.is_none() {
             return Ok(None);
         }
         let header_end = header_end.unwrap();
         let headers = parse_header(&src[..(header_end - 1)])?;
-        debug!("parsed headers are : {:?}", headers);
+        trace!("parsed headers are : {:?}", headers);
         let body_start = header_end + 1;
         if let Some(length) = headers.get("Content-Length") {
             let length = length.as_str().unwrap();
             let body_length = length.parse()?;
             if src.len() < (header_end + body_length + 1) {
-                debug!("returned because size was not enough");
+                trace!("returned because size was not enough");
                 return Ok(None);
             }
             let body = parse_body(&src[body_start..], body_length);
