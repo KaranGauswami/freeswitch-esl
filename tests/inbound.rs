@@ -26,7 +26,7 @@ async fn send_recv_test() -> Result<(), InboundError> {
     let addr = "3.109.206.34:8021";
     let inbound = Inbound::new(addr, "ClueCon").await?;
     let response = inbound.send_recv(b"api reloadxml\n\n").await?;
-    let body = response.body().unwrap();
+    let body = response.body().clone().unwrap();
     assert_eq!("+OK [Success]\n", body);
     Ok(())
 }

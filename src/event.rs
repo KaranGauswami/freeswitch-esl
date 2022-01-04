@@ -8,10 +8,10 @@ pub struct Event {
     pub body: Option<String>,
 }
 impl Event {
-    pub fn headers(&self) -> HashMap<String, Value> {
-        self.headers.clone()
+    pub fn headers(&self) -> &HashMap<String, Value> {
+        &self.headers
     }
-    pub fn body(&self) -> Option<String> {
-        self.body.clone()
+    pub fn body(&self) -> &Option<String> {
+        &self.body
     }
 }

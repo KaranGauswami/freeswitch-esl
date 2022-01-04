@@ -71,7 +71,10 @@ impl Inbound {
                 if let Some(Ok(event)) = transport_rx.next().await {
                     if let Some(types) = event.headers.get("Content-Type") {
                         if types == "text/event-json" {
-                            let data = event.body().expect("Unable to get body of event-json");
+                            let data = event
+                                .body()
+                                .clone()
+                                .expect("Unable to get body of event-json");
 
                             let event_body =
                                 parse_json_body(data).expect("Unable to parse body of event-json");
@@ -162,13 +165,13 @@ impl Inbound {
             .await?;
 
         let resp = rx.await?;
-        let body = resp.body().ok_or_else(|| {
+        let body = resp.body().clone().ok_or_else(|| {
             InboundError::InternalError("body was not found in event/json".into())
         })?;
 
         let body_hashmap = parse_json_body(body)?;
 
-        let mut hsmp = resp.headers();
+        let mut hsmp = resp.headers().clone();
         hsmp.extend(body_hashmap);
         let body = hsmp.get("_body").ok_or_else(|| {
             InboundError::InternalError("body was not found in event/json".into())
