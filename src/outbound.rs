@@ -19,7 +19,7 @@ use tokio::{
 };
 use tokio_util::codec::{FramedRead, FramedWrite};
 
-use crate::{event::Event, io::EslCodec, InboundError};
+use crate::{event::Event, io::EslCodec, EslError};
 
 pub struct Outbound {
     listener: TcpListener,
@@ -29,7 +29,7 @@ impl Outbound {
         let listener = TcpListener::bind(addr).await?;
         Ok(Self { listener })
     }
-    pub async fn accept(&self) -> Result<(OutboundSession, SocketAddr), InboundError> {
+    pub async fn accept(&self) -> Result<(OutboundSession, SocketAddr), EslError> {
         let (stream, addr) = self.listener.accept().await?;
         let commands = Arc::new(Mutex::new(VecDeque::new()));
         let inner_commands = Arc::clone(&commands);
@@ -123,7 +123,7 @@ impl Outbound {
     }
 }
 
-fn parse_json_body(body: String) -> Result<HashMap<String, Value>, InboundError> {
+fn parse_json_body(body: String) -> Result<HashMap<String, Value>, EslError> {
     Ok(serde_json::from_str(&body)?)
 }
 pub struct OutboundSession {
@@ -135,7 +135,7 @@ pub struct OutboundSession {
     connected: AtomicBool,
 }
 impl OutboundSession {
-    pub async fn execute(&self, app_name: &str, app_args: &str) -> Result<(), InboundError> {
+    pub async fn execute(&self, app_name: &str, app_args: &str) -> Result<(), EslError> {
         let event_uuid = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = channel();
         self.background_jobs
@@ -150,17 +150,17 @@ impl OutboundSession {
         trace!("got response from channel {:?}", resp);
         Ok(())
     }
-    pub async fn answer(&self) -> Result<(), InboundError> {
+    pub async fn answer(&self) -> Result<(), EslError> {
         self.execute("answer", "").await
     }
-    pub async fn playback(&self, file_path: &str) -> Result<(), InboundError> {
+    pub async fn playback(&self, file_path: &str) -> Result<(), EslError> {
         self.execute("playback", file_path).await
     }
-    pub async fn subscribe(&self, events: Vec<&str>) -> Result<Event, InboundError> {
+    pub async fn subscribe(&self, events: Vec<&str>) -> Result<Event, EslError> {
         let message = format!("event json {}", events.join(" "));
         self.send_recv(message.as_bytes()).await
     }
-    pub async fn disconnect(self) -> Result<(), InboundError> {
+    pub async fn disconnect(self) -> Result<(), EslError> {
         self.send_recv(b"exit").await?;
         self.connected.store(false, Ordering::Relaxed);
         Ok(())
@@ -168,11 +168,11 @@ impl OutboundSession {
     pub fn connected(&self) -> bool {
         self.connected.load(Ordering::Relaxed)
     }
-    pub async fn send(&self, item: &[u8]) -> Result<(), InboundError> {
+    pub async fn send(&self, item: &[u8]) -> Result<(), EslError> {
         let mut transport = self.transport_tx.lock().await;
         transport.send(item).await
     }
-    pub async fn send_recv(&self, item: &[u8]) -> Result<Event, InboundError> {
+    pub async fn send_recv(&self, item: &[u8]) -> Result<Event, EslError> {
         self.send(item).await?;
         let (tx, rx) = channel();
         self.commands.lock().await.push_back(tx);

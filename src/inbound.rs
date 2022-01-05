@@ -1,5 +1,5 @@
 use crate::code::{Code, ParseCode};
-use crate::error::InboundError;
+use crate::error::EslError;
 use crate::event::Event;
 use crate::io::EslCodec;
 use futures::SinkExt;
@@ -26,7 +26,7 @@ pub struct Inbound {
 }
 
 impl Inbound {
-    pub async fn disconnect(self) -> Result<(), InboundError> {
+    pub async fn disconnect(self) -> Result<(), EslError> {
         self.send_recv(b"exit").await?;
         self.connected.store(false, Ordering::Relaxed);
         Ok(())
@@ -34,11 +34,11 @@ impl Inbound {
     pub fn connected(&self) -> bool {
         self.connected.load(Ordering::Relaxed)
     }
-    pub async fn send(&self, item: &[u8]) -> Result<(), InboundError> {
+    pub async fn send(&self, item: &[u8]) -> Result<(), EslError> {
         let mut transport = self.transport_tx.lock().await;
         transport.send(item).await
     }
-    pub async fn send_recv(&self, item: &[u8]) -> Result<Event, InboundError> {
+    pub async fn send_recv(&self, item: &[u8]) -> Result<Event, EslError> {
         self.send(item).await?;
         let (tx, rx) = channel();
         self.commands.lock().await.push_back(tx);
@@ -48,7 +48,7 @@ impl Inbound {
     pub async fn with_tcpstream(
         stream: TcpStream,
         password: impl ToString,
-    ) -> Result<Self, InboundError> {
+    ) -> Result<Self, EslError> {
         // let sender = Arc::new(sender);
         let commands = Arc::new(Mutex::new(VecDeque::new()));
         let inner_commands = Arc::clone(&commands);
@@ -106,24 +106,24 @@ impl Inbound {
             .await?;
         Ok(connection)
     }
-    pub async fn subscribe(&self, events: Vec<&str>) -> Result<Event, InboundError> {
+    pub async fn subscribe(&self, events: Vec<&str>) -> Result<Event, EslError> {
         let message = format!("event json {}", events.join(" "));
         self.send_recv(message.as_bytes()).await
     }
     pub async fn new(
         socket: impl ToSocketAddrs,
         password: impl ToString,
-    ) -> Result<Self, InboundError> {
+    ) -> Result<Self, EslError> {
         let stream = TcpStream::connect(socket).await?;
         Self::with_tcpstream(stream, password).await
     }
-    pub async fn auth(&self) -> Result<String, InboundError> {
+    pub async fn auth(&self) -> Result<String, EslError> {
         let auth_response = self
             .send_recv(format!("auth {}", self.password).as_bytes())
             .await?;
         let auth_headers = auth_response.headers();
         let reply_text = auth_headers.get("Reply-Text").ok_or_else(|| {
-            InboundError::InternalError("Reply-Text in auth request was not found".into())
+            EslError::InternalError("Reply-Text in auth request was not found".into())
         })?;
         let reply_text = reply_text.as_str().unwrap();
         let (code, text) = parse_api_response(reply_text)?;
@@ -132,27 +132,27 @@ impl Inbound {
                 self.connected.store(true, Ordering::Relaxed);
                 Ok(text)
             }
-            Code::Err => Err(InboundError::AuthFailed),
-            Code::Unknown => Err(InboundError::InternalError(
+            Code::Err => Err(EslError::AuthFailed),
+            Code::Unknown => Err(EslError::InternalError(
                 "Got unknown code in auth request".into(),
             )),
         }
     }
-    pub async fn api(&self, command: &str) -> Result<String, InboundError> {
+    pub async fn api(&self, command: &str) -> Result<String, EslError> {
         let response = self.send_recv(format!("api {}", command).as_bytes()).await;
         let event = response?;
         let body = event
             .body
-            .ok_or_else(|| InboundError::InternalError("Didnt get body in api response".into()))?;
+            .ok_or_else(|| EslError::InternalError("Didnt get body in api response".into()))?;
 
         let (code, text) = parse_api_response(&body)?;
         match code {
             Code::Ok => Ok(text),
-            Code::Err => Err(InboundError::ApiError(text)),
+            Code::Err => Err(EslError::ApiError(text)),
             Code::Unknown => Ok(body),
         }
     }
-    pub async fn bgapi(&self, command: &str) -> Result<String, InboundError> {
+    pub async fn bgapi(&self, command: &str) -> Result<String, EslError> {
         trace!("Send bgapi {}", command);
         let job_uuid = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = channel();
@@ -165,30 +165,31 @@ impl Inbound {
             .await?;
 
         let resp = rx.await?;
-        let body = resp.body().clone().ok_or_else(|| {
-            InboundError::InternalError("body was not found in event/json".into())
-        })?;
+        let body = resp
+            .body()
+            .clone()
+            .ok_or_else(|| EslError::InternalError("body was not found in event/json".into()))?;
 
         let body_hashmap = parse_json_body(body)?;
 
         let mut hsmp = resp.headers().clone();
         hsmp.extend(body_hashmap);
-        let body = hsmp.get("_body").ok_or_else(|| {
-            InboundError::InternalError("body was not found in event/json".into())
-        })?;
+        let body = hsmp
+            .get("_body")
+            .ok_or_else(|| EslError::InternalError("body was not found in event/json".into()))?;
         let body = body.as_str().unwrap();
         let (code, text) = parse_api_response(body)?;
         match code {
             Code::Ok => Ok(text),
-            Code::Err => Err(InboundError::ApiError(text)),
+            Code::Err => Err(EslError::ApiError(text)),
             Code::Unknown => Ok(body.to_string()),
         }
     }
 }
-fn parse_api_response(body: &str) -> Result<(Code, String), InboundError> {
+fn parse_api_response(body: &str) -> Result<(Code, String), EslError> {
     let space_index = body
         .find(char::is_whitespace)
-        .ok_or_else(|| InboundError::InternalError("Unable to find space index".into()))?;
+        .ok_or_else(|| EslError::InternalError("Unable to find space index".into()))?;
     let code = &body[..space_index];
     let text_start = space_index + 1;
     let body_length = body.len();
@@ -200,6 +201,6 @@ fn parse_api_response(body: &str) -> Result<(Code, String), InboundError> {
     let code = code.parse_code()?;
     Ok((code, text))
 }
-fn parse_json_body(body: String) -> Result<HashMap<String, Value>, InboundError> {
+fn parse_json_body(body: String) -> Result<HashMap<String, Value>, EslError> {
     Ok(serde_json::from_str(&body)?)
 }

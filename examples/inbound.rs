@@ -1,7 +1,7 @@
-use freeswitch_esl::{inbound::Inbound, InboundError};
+use freeswitch_esl::{inbound::Inbound, EslError};
 
 #[tokio::main]
-async fn main() -> Result<(), InboundError> {
+async fn main() -> Result<(), EslError> {
     let addr = "3.109.206.34:8021"; // Freeswitch host
     let password = "ClueCon";
     let inbound = Inbound::new(addr, password).await?;

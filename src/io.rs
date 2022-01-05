@@ -5,13 +5,13 @@ use log::trace;
 use serde_json::Value;
 use tokio_util::codec::{Decoder, Encoder};
 
-use crate::{event::Event, InboundError};
+use crate::{event::Event, EslError};
 
 #[derive(Debug, Clone)]
 pub struct EslCodec {}
 
 impl Encoder<&[u8]> for EslCodec {
-    type Error = InboundError;
+    type Error = EslError;
     fn encode(&mut self, item: &[u8], dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
         dst.extend_from_slice(item);
         dst.extend_from_slice(b"\n\n");
@@ -51,7 +51,7 @@ fn parse_header(src: &[u8]) -> Result<HashMap<String, Value>, std::io::Error> {
 
 impl Decoder for EslCodec {
     type Item = Event;
-    type Error = InboundError;
+    type Error = EslError;
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         trace!("decode");
         let header_end = get_header_end(src);

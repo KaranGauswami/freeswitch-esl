@@ -6,10 +6,10 @@ pub enum Code {
 }
 
 pub trait ParseCode {
-    fn parse_code(self) -> Result<Code, crate::InboundError>;
+    fn parse_code(self) -> Result<Code, crate::EslError>;
 }
 impl ParseCode for &str {
-    fn parse_code(self) -> Result<Code, crate::InboundError> {
+    fn parse_code(self) -> Result<Code, crate::EslError> {
         match self {
             "+OK" => Ok(Code::Ok),
             "-ERR" => Ok(Code::Err),

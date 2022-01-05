@@ -1,7 +1,7 @@
-use freeswitch_esl::{inbound::Inbound, InboundError};
+use freeswitch_esl::{inbound::Inbound, EslError};
 
 #[tokio::test]
-async fn reloadxml() -> Result<(), InboundError> {
+async fn reloadxml() -> Result<(), EslError> {
     let addr = "3.109.206.34:8021";
     let inbound = Inbound::new(addr, "ClueCon").await?;
     let response = inbound.api("reloadxml").await;
@@ -10,19 +10,19 @@ async fn reloadxml() -> Result<(), InboundError> {
 }
 
 #[tokio::test]
-async fn call_user_that_doesnt_exists() -> Result<(), InboundError> {
+async fn call_user_that_doesnt_exists() -> Result<(), EslError> {
     let addr = "3.109.206.34:8021";
     let inbound = Inbound::new(addr, "ClueCon").await?;
     let response = inbound
         .api("originate user/some_user_that_doesnt_exists karan")
         .await
         .unwrap_err();
-    assert_eq!(InboundError::ApiError("SUBSCRIBER_ABSENT".into()), response);
+    assert_eq!(EslError::ApiError("SUBSCRIBER_ABSENT".into()), response);
     Ok(())
 }
 
 #[tokio::test]
-async fn send_recv_test() -> Result<(), InboundError> {
+async fn send_recv_test() -> Result<(), EslError> {
     let addr = "3.109.206.34:8021";
     let inbound = Inbound::new(addr, "ClueCon").await?;
     let response = inbound.send_recv(b"api reloadxml\n\n").await?;
@@ -32,15 +32,15 @@ async fn send_recv_test() -> Result<(), InboundError> {
 }
 
 #[tokio::test]
-async fn wrong_password() -> core::result::Result<(), InboundError> {
+async fn wrong_password() -> core::result::Result<(), EslError> {
     let addr = "3.109.206.34:8021";
     let result = Inbound::new(addr, "ClueCons").await;
-    assert_eq!(InboundError::AuthFailed, result.unwrap_err());
+    assert_eq!(EslError::AuthFailed, result.unwrap_err());
     Ok(())
 }
 
 #[tokio::test]
-async fn multiple_actions() -> core::result::Result<(), InboundError> {
+async fn multiple_actions() -> core::result::Result<(), EslError> {
     let addr = "3.109.206.34:8021";
     let inbound = Inbound::new(addr, "ClueCon").await?;
     let body = inbound.bgapi("reloadxml").await;
@@ -49,14 +49,14 @@ async fn multiple_actions() -> core::result::Result<(), InboundError> {
         .bgapi("originate user/some_user_that_doesnt_exists karan")
         .await;
     assert_eq!(
-        Err(InboundError::ApiError("SUBSCRIBER_ABSENT".to_string())),
+        Err(EslError::ApiError("SUBSCRIBER_ABSENT".to_string())),
         body
     );
     Ok(())
 }
 
 #[tokio::test]
-async fn concurrent_api() -> core::result::Result<(), InboundError> {
+async fn concurrent_api() -> core::result::Result<(), EslError> {
     let addr = "3.109.206.34:8021";
     let inbound = Inbound::new(addr, "ClueCon").await?;
     let response1 = inbound.api("reloadxml");
@@ -64,16 +64,13 @@ async fn concurrent_api() -> core::result::Result<(), InboundError> {
     let response3 = inbound.api("reloadxml");
     let (result1, result2, result3) = tokio::join!(response1, response2, response3);
     assert_eq!(Ok("[Success]".into()), result1);
-    assert_eq!(
-        Err(InboundError::ApiError("SUBSCRIBER_ABSENT".into())),
-        result2
-    );
+    assert_eq!(Err(EslError::ApiError("SUBSCRIBER_ABSENT".into())), result2);
     assert_eq!(Ok("[Success]".into()), result3);
     Ok(())
 }
 
 #[tokio::test]
-async fn concurrent_bgapi() -> core::result::Result<(), InboundError> {
+async fn concurrent_bgapi() -> core::result::Result<(), EslError> {
     let addr = "3.109.206.34:8021";
     let inbound = Inbound::new(addr, "ClueCon").await?;
     let response1 = inbound.bgapi("reloadxml");
@@ -82,7 +79,7 @@ async fn concurrent_bgapi() -> core::result::Result<(), InboundError> {
     let (response1, response2, response3) = tokio::join!(response1, response2, response3);
     assert_eq!(Ok("[Success]".to_string()), response1);
     assert_eq!(
-        Err(InboundError::ApiError("SUBSCRIBER_ABSENT".to_string())),
+        Err(EslError::ApiError("SUBSCRIBER_ABSENT".to_string())),
         response2
     );
     assert_eq!(Ok("[Success]".to_string()), response3);
@@ -90,14 +87,14 @@ async fn concurrent_bgapi() -> core::result::Result<(), InboundError> {
 }
 
 #[tokio::test]
-async fn connected_status() -> Result<(), InboundError> {
+async fn connected_status() -> Result<(), EslError> {
     let addr = "3.109.206.34:8021";
     let inbound = Inbound::new(addr, "ClueCon").await?;
     assert_eq!(true, inbound.connected());
     Ok(())
 }
 #[tokio::test]
-async fn with_tcpstream() -> Result<(), InboundError> {
+async fn with_tcpstream() -> Result<(), EslError> {
     let addr = "3.109.206.34:8021";
     let stream = tokio::net::TcpStream::connect(addr).await?;
     let inbound = Inbound::with_tcpstream(stream, "ClueCon").await?;
@@ -107,7 +104,7 @@ async fn with_tcpstream() -> Result<(), InboundError> {
 }
 
 #[tokio::test]
-async fn restart_external_profile() -> Result<(), InboundError> {
+async fn restart_external_profile() -> Result<(), EslError> {
     let addr = "3.109.206.34:8021";
     let inbound = Inbound::new(addr, "ClueCon").await?;
     let body = inbound.api("sofia profile external restart").await;
@@ -119,7 +116,7 @@ async fn restart_external_profile() -> Result<(), InboundError> {
 }
 
 #[tokio::test]
-async fn uuid_kill() -> Result<(), InboundError> {
+async fn uuid_kill() -> Result<(), EslError> {
     let addr = "3.109.206.34:8021"; // Freeswitch host
     let password = "ClueCon";
     let inbound = Inbound::new(addr, password).await?;

@@ -1,10 +1,10 @@
 use freeswitch_esl::{
     outbound::{Outbound, OutboundSession},
-    InboundError,
+    EslError,
 };
 
 #[tokio::main]
-async fn main() -> Result<(), InboundError> {
+async fn main() -> Result<(), EslError> {
     env_logger::init();
     let addr = "0.0.0.0:8085"; // Freeswitch host
     let listener = Outbound::bind(addr).await?;
@@ -14,7 +14,7 @@ async fn main() -> Result<(), InboundError> {
         tokio::spawn(async move { process_call(socket).await });
     }
 }
-async fn process_call(conn: OutboundSession) -> Result<(), InboundError> {
+async fn process_call(conn: OutboundSession) -> Result<(), EslError> {
     conn.answer().await?;
     conn.playback("ivr/ivr-welcome.wav").await?;
     conn.playback("misc/misc-freeswitch_is_state_of_the_art.wav")
