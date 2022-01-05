@@ -4,7 +4,7 @@ FreeSwitch ESL implementation for Rust
 
 # Examples
 
-## Executing simple commands
+## Inbound Example
 
 ```rust
 
