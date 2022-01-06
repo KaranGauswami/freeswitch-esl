@@ -18,6 +18,9 @@ pub enum EslError {
 
     #[error("")]
     CodeParseError(),
+
+    #[error("Didnt get any digits")]
+    NoInput,
 }
 
 impl From<std::io::Error> for EslError {

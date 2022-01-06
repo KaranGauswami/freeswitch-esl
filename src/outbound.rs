@@ -41,7 +41,7 @@ impl Outbound {
         let transport_tx = Arc::new(Mutex::new(FramedWrite::new(write_half, esl_codec.clone())));
         let mut connection = OutboundSession {
             call_uuid: None,
-            connection_info: HashMap::new(),
+            connection_info: None,
             commands,
             background_jobs,
             transport_tx,
@@ -59,7 +59,7 @@ impl Outbound {
                                 .expect("Unable to get body of event-json");
 
                             let event_body =
-                                parse_json_body(data).expect("Unable to parse body of event-json");
+                                parse_json_body(&data).expect("Unable to parse body of event-json");
                             let job_uuid = event_body.get("Job-UUID");
                             if let Some(job_uuid) = job_uuid {
                                 let job_uuid = job_uuid.as_str().unwrap();
@@ -104,15 +104,16 @@ impl Outbound {
         });
         let response = connection.send_recv(b"connect").await?;
         trace!("{:?}", response);
-        connection.connection_info = response.headers().clone();
+        connection.connection_info = Some(response.headers().clone());
         let response = connection
             .subscribe(vec!["BACKGROUND_JOB", "CHANNEL_EXECUTE_COMPLETE"])
             .await?;
         trace!("{:?}", response);
         let response = connection.send_recv(b"myevents").await?;
         trace!("{:?}", response);
-        let channel_unique_id = connection
-            .connection_info
+        let connection_info = connection.connection_info.as_ref().unwrap();
+
+        let channel_unique_id = connection_info
             .get("Channel-Unique-ID")
             .unwrap()
             .as_str()
@@ -123,19 +124,49 @@ impl Outbound {
     }
 }
 
-fn parse_json_body(body: String) -> Result<HashMap<String, Value>, EslError> {
-    Ok(serde_json::from_str(&body)?)
+fn parse_json_body(body: &str) -> Result<HashMap<String, Value>, EslError> {
+    Ok(serde_json::from_str(body)?)
 }
 pub struct OutboundSession {
     call_uuid: Option<String>,
-    connection_info: HashMap<String, Value>,
+    connection_info: Option<HashMap<String, Value>>,
     commands: Arc<Mutex<VecDeque<Sender<Event>>>>,
     transport_tx: Arc<Mutex<FramedWrite<OwnedWriteHalf, EslCodec>>>,
     background_jobs: Arc<Mutex<HashMap<String, Sender<Event>>>>,
     connected: AtomicBool,
 }
 impl OutboundSession {
-    pub async fn execute(&self, app_name: &str, app_args: &str) -> Result<(), EslError> {
+    pub async fn hangup(&self) -> Result<Event, EslError> {
+        self.execute("hangup", "").await
+    }
+    pub async fn play_and_get_digits(
+        &self,
+        min: u8,
+        max: u8,
+        tries: u8,
+        timeout: u64,
+        terminators: &str,
+        file: &str,
+        invalid_file: &str,
+    ) -> Result<String, EslError> {
+        let variable_name = uuid::Uuid::new_v4().to_string();
+        let app_name = "play_and_get_digits";
+        let app_args = format!(
+            "{} {} {} {} {} {} {} {}",
+            min, max, tries, timeout, terminators, file, invalid_file, variable_name
+        );
+        let data = self.execute(app_name, &app_args).await?;
+        let body = data.body.as_ref().unwrap();
+        let body = parse_json_body(body).unwrap();
+        let result = body.get(&format!("variable_{}", variable_name));
+        if let Some(digit) = result {
+            let digit = digit.as_str().unwrap().to_string();
+            Ok(digit)
+        } else {
+            Err(EslError::NoInput)
+        }
+    }
+    pub async fn execute(&self, app_name: &str, app_args: &str) -> Result<Event, EslError> {
         let event_uuid = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = channel();
         self.background_jobs
@@ -148,12 +179,12 @@ impl OutboundSession {
         trace!("inside execute {:?}", response);
         let resp = rx.await?;
         trace!("got response from channel {:?}", resp);
-        Ok(())
+        Ok(resp)
     }
-    pub async fn answer(&self) -> Result<(), EslError> {
+    pub async fn answer(&self) -> Result<Event, EslError> {
         self.execute("answer", "").await
     }
-    pub async fn playback(&self, file_path: &str) -> Result<(), EslError> {
+    pub async fn playback(&self, file_path: &str) -> Result<Event, EslError> {
         self.execute("playback", file_path).await
     }
     pub async fn subscribe(&self, events: Vec<&str>) -> Result<Event, EslError> {
