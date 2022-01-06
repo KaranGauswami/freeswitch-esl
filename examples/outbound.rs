@@ -19,7 +19,7 @@ async fn process_call(conn: OutboundSession) -> Result<(), EslError> {
 #[tokio::main]
 async fn main() -> Result<(), EslError> {
     env_logger::init();
-    let addr = "0.0.0.0:8085"; // Freeswitch host
+    let addr = "0.0.0.0:8085"; // Listening address
     let listener = Outbound::bind(addr).await?;
 
     loop {
