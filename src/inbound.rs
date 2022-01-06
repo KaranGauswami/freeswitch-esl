@@ -1,5 +1,6 @@
 use crate::code::{Code, ParseCode};
 use crate::error::EslError;
+use crate::esl::EslConnectionType;
 use crate::event::Event;
 use crate::io::EslCodec;
 use futures::SinkExt;
@@ -17,7 +18,7 @@ use tokio::sync::{
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, FramedWrite};
 #[derive(Debug)]
-pub struct Inbound {
+pub struct EslConnection {
     password: String,
     commands: Arc<Mutex<VecDeque<Sender<Event>>>>,
     transport_tx: Arc<Mutex<FramedWrite<OwnedWriteHalf, EslCodec>>>,
@@ -25,7 +26,7 @@ pub struct Inbound {
     connected: AtomicBool,
 }
 
-impl Inbound {
+impl EslConnection {
     pub async fn disconnect(self) -> Result<(), EslError> {
         self.send_recv(b"exit").await?;
         self.connected.store(false, Ordering::Relaxed);
@@ -48,6 +49,7 @@ impl Inbound {
     pub async fn with_tcpstream(
         stream: TcpStream,
         password: impl ToString,
+        connection_type: EslConnectionType,
     ) -> Result<Self, EslError> {
         // let sender = Arc::new(sender);
         let commands = Arc::new(Mutex::new(VecDeque::new()));
@@ -58,7 +60,9 @@ impl Inbound {
         let (read_half, write_half) = stream.into_split();
         let mut transport_rx = FramedRead::new(read_half, esl_codec.clone());
         let transport_tx = Arc::new(Mutex::new(FramedWrite::new(write_half, esl_codec.clone())));
-        transport_rx.next().await;
+        if connection_type == EslConnectionType::Inbound {
+            transport_rx.next().await;
+        }
         let connection = Self {
             password: password.to_string(),
             commands,
@@ -99,11 +103,16 @@ impl Inbound {
                 }
             }
         });
-        let auth_response = connection.auth().await?;
-        trace!("auth_response {:?}", auth_response);
-        connection
-            .subscribe(vec!["BACKGROUND_JOB", "CHANNEL_EXECUTE_COMPLETE"])
-            .await?;
+        match connection_type {
+            EslConnectionType::Inbound => {
+                let auth_response = connection.auth().await?;
+                trace!("auth_response {:?}", auth_response);
+                connection
+                    .subscribe(vec!["BACKGROUND_JOB", "CHANNEL_EXECUTE_COMPLETE"])
+                    .await?;
+            }
+            EslConnectionType::Outbound => todo!(),
+        }
         Ok(connection)
     }
     pub async fn subscribe(&self, events: Vec<&str>) -> Result<Event, EslError> {
@@ -113,9 +122,10 @@ impl Inbound {
     pub async fn new(
         socket: impl ToSocketAddrs,
         password: impl ToString,
+        connection_type: EslConnectionType,
     ) -> Result<Self, EslError> {
         let stream = TcpStream::connect(socket).await?;
-        Self::with_tcpstream(stream, password).await
+        Self::with_tcpstream(stream, password, connection_type).await
     }
     pub async fn auth(&self) -> Result<String, EslError> {
         let auth_response = self
@@ -193,7 +203,7 @@ fn parse_api_response(body: &str) -> Result<(Code, String), EslError> {
     let code = &body[..space_index];
     let text_start = space_index + 1;
     let body_length = body.len();
-    let text = if text_start <= body_length - 1 {
+    let text = if text_start < body_length {
         body[text_start..(body_length - 1)].to_string()
     } else {
         String::new()
