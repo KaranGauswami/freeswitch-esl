@@ -75,13 +75,14 @@ impl EslConnection {
                 if let Some(Ok(event)) = transport_rx.next().await {
                     if let Some(types) = event.headers.get("Content-Type") {
                         if types == "text/event-json" {
+                            trace!("got event-json");
                             let data = event
                                 .body()
                                 .clone()
                                 .expect("Unable to get body of event-json");
 
                             let event_body =
-                                parse_json_body(data).expect("Unable to parse body of event-json");
+                                parse_json_body(&data).expect("Unable to parse body of event-json");
                             let job_uuid = event_body.get("Job-UUID");
                             if let Some(job_uuid) = job_uuid {
                                 let job_uuid = job_uuid.as_str().unwrap();
@@ -93,8 +94,29 @@ impl EslConnection {
                                         .expect("Unable to send channel message from bgapi");
                                 }
                                 trace!("continued");
+                                continue;
+                            }
+                            if let Some(application_uuid) = event_body.get("Application-UUID") {
+                                let job_uuid = application_uuid.as_str().unwrap();
+                                if let Some(event_name) = event_body.get("Event-Name") {
+                                    if let Some(event_name) = event_name.as_str() {
+                                        if event_name == "CHANNEL_EXECUTE_COMPLETE" {
+                                            if let Some(tx) =
+                                                inner_background_jobs.lock().await.remove(job_uuid)
+                                            {
+                                                let _ = tx.send(event).expect(
+                                                    "Unable to send channel message from bgapi",
+                                                );
+                                            }
+                                            trace!("continued");
+                                            trace!("got channel execute complete");
+                                        }
+                                    }
+                                }
                             }
                             continue;
+                        } else {
+                            trace!("got another event {:?}", event);
                         }
                     }
                     if let Some(tx) = inner_commands.lock().await.pop_front() {
@@ -180,7 +202,7 @@ impl EslConnection {
             .clone()
             .ok_or_else(|| EslError::InternalError("body was not found in event/json".into()))?;
 
-        let body_hashmap = parse_json_body(body)?;
+        let body_hashmap = parse_json_body(&body)?;
 
         let mut hsmp = resp.headers().clone();
         hsmp.extend(body_hashmap);
@@ -211,6 +233,6 @@ fn parse_api_response(body: &str) -> Result<(Code, String), EslError> {
     let code = code.parse_code()?;
     Ok((code, text))
 }
-fn parse_json_body(body: String) -> Result<HashMap<String, Value>, EslError> {
-    Ok(serde_json::from_str(&body)?)
+fn parse_json_body(body: &str) -> Result<HashMap<String, Value>, EslError> {
+    Ok(serde_json::from_str(body)?)
 }
