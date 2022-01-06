@@ -1,9 +1,6 @@
-use freeswitch_esl::{
-    outbound::{Outbound, OutboundSession},
-    EslError,
-};
+use freeswitch_esl::{connection::EslConnection, outbound::Outbound, EslError};
 
-async fn process_call(conn: OutboundSession) -> Result<(), EslError> {
+async fn process_call(conn: EslConnection) -> Result<(), EslError> {
     conn.answer().await?;
     conn.playback("ivr/ivr-welcome.wav").await?;
     let digit = conn

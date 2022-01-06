@@ -1,6 +1,6 @@
 use tokio::net::ToSocketAddrs;
 
-use crate::{inbound::EslConnection, EslError};
+use crate::{connection::EslConnection, EslError};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EslConnectionType {
     Inbound,
