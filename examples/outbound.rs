@@ -1,4 +1,4 @@
-use freeswitch_esl::{connection::EslConnection, outbound::Outbound, EslError};
+use freeswitch_esl::{connection::EslConnection, Esl, EslError};
 
 async fn process_call(conn: EslConnection) -> Result<(), EslError> {
     conn.answer().await?;
@@ -17,7 +17,7 @@ async fn process_call(conn: EslConnection) -> Result<(), EslError> {
 async fn main() -> Result<(), EslError> {
     env_logger::init();
     let addr = "0.0.0.0:8085"; // Listening address
-    let listener = Outbound::bind(addr).await?;
+    let listener = Esl::outbound(addr).await?;
 
     loop {
         let (socket, _) = listener.accept().await?;

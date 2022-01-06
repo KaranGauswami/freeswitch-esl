@@ -1,6 +1,6 @@
 use tokio::net::ToSocketAddrs;
 
-use crate::{connection::EslConnection, EslError};
+use crate::{connection::EslConnection, outbound::Outbound, EslError};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EslConnectionType {
     Inbound,
@@ -14,5 +14,7 @@ impl Esl {
     ) -> Result<EslConnection, EslError> {
         EslConnection::new(addr, password, EslConnectionType::Inbound).await
     }
-    pub fn outbound() {}
+    pub async fn outbound(addr: impl ToSocketAddrs) -> Result<Outbound, EslError> {
+        Ok(Outbound::bind(addr).await?)
+    }
 }
