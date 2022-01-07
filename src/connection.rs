@@ -9,7 +9,7 @@ use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
 use std::sync::{atomic::AtomicBool, Arc};
-use tokio::net::tcp::OwnedWriteHalf;
+use tokio::io::WriteHalf;
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::{
     oneshot::{channel, Sender},
@@ -21,7 +21,7 @@ use tokio_util::codec::{FramedRead, FramedWrite};
 pub struct EslConnection {
     password: String,
     commands: Arc<Mutex<VecDeque<Sender<Event>>>>,
-    transport_tx: Arc<Mutex<FramedWrite<OwnedWriteHalf, EslCodec>>>,
+    transport_tx: Arc<Mutex<FramedWrite<WriteHalf<TcpStream>, EslCodec>>>,
     background_jobs: Arc<Mutex<HashMap<String, Sender<Event>>>>,
     connected: AtomicBool,
     pub(crate) call_uuid: Option<String>,
@@ -59,7 +59,7 @@ impl EslConnection {
         let background_jobs = Arc::new(Mutex::new(HashMap::new()));
         let inner_background_jobs = Arc::clone(&background_jobs);
         let esl_codec = EslCodec {};
-        let (read_half, write_half) = stream.into_split();
+        let (read_half, write_half) = tokio::io::split(stream);
         let mut transport_rx = FramedRead::new(read_half, esl_codec.clone());
         let transport_tx = Arc::new(Mutex::new(FramedWrite::new(write_half, esl_codec.clone())));
         if connection_type == EslConnectionType::Inbound {
