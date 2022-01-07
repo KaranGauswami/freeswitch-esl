@@ -5,7 +5,7 @@ pub enum Code {
     Unknown,
 }
 
-pub trait ParseCode {
+pub(crate) trait ParseCode {
     fn parse_code(self) -> Result<Code, crate::EslError>;
 }
 impl ParseCode for &str {

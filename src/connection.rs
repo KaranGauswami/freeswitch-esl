@@ -37,7 +37,7 @@ impl EslConnection {
     pub fn connected(&self) -> bool {
         self.connected.load(Ordering::Relaxed)
     }
-    pub async fn send(&self, item: &[u8]) -> Result<(), EslError> {
+    pub(crate) async fn send(&self, item: &[u8]) -> Result<(), EslError> {
         let mut transport = self.transport_tx.lock().await;
         transport.send(item).await
     }
@@ -48,7 +48,7 @@ impl EslConnection {
         Ok(rx.await?)
     }
 
-    pub async fn with_tcpstream(
+    pub(crate) async fn with_tcpstream(
         stream: TcpStream,
         password: impl ToString,
         connection_type: EslConnectionType,
@@ -163,7 +163,7 @@ impl EslConnection {
         let message = format!("event json {}", events.join(" "));
         self.send_recv(message.as_bytes()).await
     }
-    pub async fn new(
+    pub(crate) async fn new(
         socket: impl ToSocketAddrs,
         password: impl ToString,
         connection_type: EslConnectionType,
@@ -171,7 +171,7 @@ impl EslConnection {
         let stream = TcpStream::connect(socket).await?;
         Self::with_tcpstream(stream, password, connection_type).await
     }
-    pub async fn auth(&self) -> Result<String, EslError> {
+    pub(crate) async fn auth(&self) -> Result<String, EslError> {
         let auth_response = self
             .send_recv(format!("auth {}", self.password).as_bytes())
             .await?;

@@ -8,7 +8,7 @@ pub struct Outbound {
     listener: TcpListener,
 }
 impl Outbound {
-    pub async fn bind(addr: impl ToSocketAddrs) -> Result<Self, std::io::Error> {
+    pub(crate) async fn bind(addr: impl ToSocketAddrs) -> Result<Self, EslError> {
         let listener = TcpListener::bind(addr).await?;
         Ok(Self { listener })
     }

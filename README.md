@@ -7,13 +7,14 @@ FreeSwitch ESL implementation for Rust
 ## Inbound Example
 
 ```rust
-use freeswitch_esl::{inbound::Inbound, EslError};
+use freeswitch_esl::esl::Esl;
+use freeswitch_esl::EslError;
 
 #[tokio::main]
 async fn main() -> Result<(), EslError> {
     let addr = "3.109.206.34:8021"; // Freeswitch host
     let password = "ClueCon";
-    let inbound = Inbound::new(addr, password).await?;
+    let inbound = Esl::inbound(addr, password).await?;
 
     let reloadxml = inbound.api("reloadxml").await?;
     println!("reloadxml response : {:?}", reloadxml);
@@ -28,12 +29,9 @@ async fn main() -> Result<(), EslError> {
 ## Outbound Example
 
 ```rust
-use freeswitch_esl::{
-    outbound::{Outbound, OutboundSession},
-    EslError,
-};
+use freeswitch_esl::{connection::EslConnection, Esl, EslError};
 
-async fn process_call(conn: OutboundSession) -> Result<(), EslError> {
+async fn process_call(conn: EslConnection) -> Result<(), EslError> {
     conn.answer().await?;
     conn.playback("ivr/ivr-welcome.wav").await?;
     let digit = conn
@@ -49,8 +47,8 @@ async fn process_call(conn: OutboundSession) -> Result<(), EslError> {
 #[tokio::main]
 async fn main() -> Result<(), EslError> {
     env_logger::init();
-    let addr = "0.0.0.0:8085"; // Freeswitch host
-    let listener = Outbound::bind(addr).await?;
+    let addr = "0.0.0.0:8085"; // Listening address
+    let listener = Esl::outbound(addr).await?;
 
     loop {
         let (socket, _) = listener.accept().await?;

@@ -6,7 +6,7 @@ pub enum EslConnectionType {
     Inbound,
     Outbound,
 }
-pub struct Esl {}
+pub struct Esl;
 impl Esl {
     pub async fn inbound(
         addr: impl ToSocketAddrs,
@@ -15,6 +15,6 @@ impl Esl {
         EslConnection::new(addr, password, EslConnectionType::Inbound).await
     }
     pub async fn outbound(addr: impl ToSocketAddrs) -> Result<Outbound, EslError> {
-        Ok(Outbound::bind(addr).await?)
+        Outbound::bind(addr).await
     }
 }

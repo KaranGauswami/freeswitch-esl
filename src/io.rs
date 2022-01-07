@@ -8,7 +8,7 @@ use tokio_util::codec::{Decoder, Encoder};
 use crate::{event::Event, EslError};
 
 #[derive(Debug, Clone)]
-pub struct EslCodec {}
+pub(crate) struct EslCodec {}
 
 impl Encoder<&[u8]> for EslCodec {
     type Error = EslError;
