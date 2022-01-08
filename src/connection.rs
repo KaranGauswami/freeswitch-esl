@@ -77,50 +77,59 @@ impl EslConnection {
         tokio::spawn(async move {
             loop {
                 if let Some(Ok(event)) = transport_rx.next().await {
-                    if let Some(types) = event.headers.get("Content-Type") {
-                        if types == "text/event-json" {
-                            trace!("got event-json");
-                            let data = event
-                                .body()
-                                .clone()
-                                .expect("Unable to get body of event-json");
-
-                            let event_body =
-                                parse_json_body(&data).expect("Unable to parse body of event-json");
-                            let job_uuid = event_body.get("Job-UUID");
-                            if let Some(job_uuid) = job_uuid {
-                                let job_uuid = job_uuid.as_str().unwrap();
-                                if let Some(tx) =
-                                    inner_background_jobs.lock().await.remove(job_uuid)
-                                {
-                                    let _ = tx
-                                        .send(event)
-                                        .expect("Unable to send channel message from bgapi");
-                                }
-                                trace!("continued");
-                                continue;
+                    if let Some(event_type) = event.headers.get("Content-Type") {
+                        match event_type.as_str().unwrap() {
+                            "text/disconnect-notice" => {
+                                trace!("got disconnect notice")
+                                return;
                             }
-                            if let Some(application_uuid) = event_body.get("Application-UUID") {
-                                let job_uuid = application_uuid.as_str().unwrap();
-                                if let Some(event_name) = event_body.get("Event-Name") {
-                                    if let Some(event_name) = event_name.as_str() {
-                                        if event_name == "CHANNEL_EXECUTE_COMPLETE" {
-                                            if let Some(tx) =
-                                                inner_background_jobs.lock().await.remove(job_uuid)
-                                            {
-                                                let _ = tx.send(event).expect(
-                                                    "Unable to send channel message from bgapi",
-                                                );
+                            "text/event-json" => {
+                                trace!("got event-json");
+                                let data = event
+                                    .body()
+                                    .clone()
+                                    .expect("Unable to get body of event-json");
+
+                                let event_body = parse_json_body(&data)
+                                    .expect("Unable to parse body of event-json");
+                                let job_uuid = event_body.get("Job-UUID");
+                                if let Some(job_uuid) = job_uuid {
+                                    let job_uuid = job_uuid.as_str().unwrap();
+                                    if let Some(tx) =
+                                        inner_background_jobs.lock().await.remove(job_uuid)
+                                    {
+                                        let _ = tx
+                                            .send(event)
+                                            .expect("Unable to send channel message from bgapi");
+                                    }
+                                    trace!("continued");
+                                    continue;
+                                }
+                                if let Some(application_uuid) = event_body.get("Application-UUID") {
+                                    let job_uuid = application_uuid.as_str().unwrap();
+                                    if let Some(event_name) = event_body.get("Event-Name") {
+                                        if let Some(event_name) = event_name.as_str() {
+                                            if event_name == "CHANNEL_EXECUTE_COMPLETE" {
+                                                if let Some(tx) = inner_background_jobs
+                                                    .lock()
+                                                    .await
+                                                    .remove(job_uuid)
+                                                {
+                                                    let _ = tx.send(event).expect(
+                                                        "Unable to send channel message from bgapi",
+                                                    );
+                                                }
+                                                trace!("continued");
+                                                trace!("got channel execute complete");
                                             }
-                                            trace!("continued");
-                                            trace!("got channel execute complete");
                                         }
                                     }
                                 }
+                                continue;
                             }
-                            continue;
-                        } else {
-                            trace!("got another event {:?}", event);
+                            _ => {
+                                trace!("got another event {:?}", event);
+                            }
                         }
                     }
                     if let Some(tx) = inner_commands.lock().await.pop_front() {
