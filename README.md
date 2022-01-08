@@ -1,5 +1,7 @@
 # freeswitch-esl (WIP)
 
+![workflow](https://github.com/KaranGauswami/freeswitch-esl/actions/workflows/rust.yml/badge.svg)
+
 FreeSwitch ESL implementation for Rust
 
 # Examples
