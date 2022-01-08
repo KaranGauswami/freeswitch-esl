@@ -3,6 +3,8 @@ use std::num::ParseIntError;
 use thiserror::Error;
 
 #[derive(Clone, Debug, PartialEq, Ord, PartialOrd, Eq, Hash, Error)]
+#[allow(missing_docs)]
+/// Error type for Esl
 pub enum EslError {
     #[error("unknown error")]
     InternalError(String),

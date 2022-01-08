@@ -18,6 +18,7 @@ use tokio::sync::{
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, FramedWrite};
 #[derive(Debug)]
+/// contains Esl connection with freeswitch
 pub struct EslConnection {
     password: String,
     commands: Arc<Mutex<VecDeque<Sender<Event>>>>,
@@ -29,11 +30,13 @@ pub struct EslConnection {
 }
 
 impl EslConnection {
+    /// disconnects from freeswitch
     pub async fn disconnect(self) -> Result<(), EslError> {
         self.send_recv(b"exit").await?;
         self.connected.store(false, Ordering::Relaxed);
         Ok(())
     }
+    /// returns status of esl connection
     pub fn connected(&self) -> bool {
         self.connected.load(Ordering::Relaxed)
     }
@@ -41,6 +44,7 @@ impl EslConnection {
         let mut transport = self.transport_tx.lock().await;
         transport.send(item).await
     }
+    /// sends raw message to freeswitch and receives reply
     pub async fn send_recv(&self, item: &[u8]) -> Result<Event, EslError> {
         self.send(item).await?;
         let (tx, rx) = channel();
@@ -168,10 +172,13 @@ impl EslConnection {
         }
         Ok(connection)
     }
+
+    /// subscribes to given events
     pub async fn subscribe(&self, events: Vec<&str>) -> Result<Event, EslError> {
         let message = format!("event json {}", events.join(" "));
         self.send_recv(message.as_bytes()).await
     }
+
     pub(crate) async fn new(
         socket: impl ToSocketAddrs,
         password: impl ToString,
@@ -201,11 +208,14 @@ impl EslConnection {
             )),
         }
     }
+
+    /// For hanging up call in outbound mode
     pub async fn hangup(&self) -> Result<Event, EslError> {
         self.execute("hangup", "").await
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// Used for mod_play_and_get_digits
     pub async fn play_and_get_digits(
         &self,
         min: u8,
@@ -233,6 +243,8 @@ impl EslConnection {
             Err(EslError::NoInput)
         }
     }
+
+    /// executes application in freeswitch
     pub async fn execute(&self, app_name: &str, app_args: &str) -> Result<Event, EslError> {
         let event_uuid = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = channel();
@@ -248,12 +260,18 @@ impl EslConnection {
         trace!("got response from channel {:?}", resp);
         Ok(resp)
     }
+
+    /// answers call in outbound mode
     pub async fn answer(&self) -> Result<Event, EslError> {
         self.execute("answer", "").await
     }
+
+    /// plays file in call during outbound mode
     pub async fn playback(&self, file_path: &str) -> Result<Event, EslError> {
         self.execute("playback", file_path).await
     }
+
+    /// sends api command to freeswitch
     pub async fn api(&self, command: &str) -> Result<String, EslError> {
         let response = self.send_recv(format!("api {}", command).as_bytes()).await;
         let event = response?;
@@ -268,6 +286,8 @@ impl EslConnection {
             Code::Unknown => Ok(body),
         }
     }
+
+    /// sends bgapi commands to freeswitch
     pub async fn bgapi(&self, command: &str) -> Result<String, EslError> {
         trace!("Send bgapi {}", command);
         let job_uuid = uuid::Uuid::new_v4().to_string();

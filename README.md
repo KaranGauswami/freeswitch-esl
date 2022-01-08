@@ -12,7 +12,7 @@ use freeswitch_esl::EslError;
 
 #[tokio::main]
 async fn main() -> Result<(), EslError> {
-    let addr = "3.109.206.34:8021"; // Freeswitch host
+    let addr = "3.108.190.91:8021"; // Freeswitch host
     let password = "ClueCon";
     let inbound = Esl::inbound(addr, password).await?;
 

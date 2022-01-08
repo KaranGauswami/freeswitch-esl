@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Code {
+pub(crate) enum Code {
     Ok,
     Err,
     Unknown,

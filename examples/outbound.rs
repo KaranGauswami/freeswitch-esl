@@ -1,4 +1,4 @@
-use freeswitch_esl::{connection::EslConnection, Esl, EslError};
+use freeswitch_esl::{Esl, EslConnection, EslError};
 
 async fn process_call(conn: EslConnection) -> Result<(), EslError> {
     conn.answer().await?;

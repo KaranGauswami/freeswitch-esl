@@ -2,7 +2,7 @@ use freeswitch_esl::{Esl, EslError};
 
 #[tokio::test]
 async fn reloadxml() -> Result<(), EslError> {
-    let addr = "3.109.206.34:8021";
+    let addr = "3.108.190.91:8021";
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     let response = inbound.api("reloadxml").await;
     assert_eq!(Ok("[Success]".into()), response);
@@ -11,7 +11,7 @@ async fn reloadxml() -> Result<(), EslError> {
 
 #[tokio::test]
 async fn call_user_that_doesnt_exists() -> Result<(), EslError> {
-    let addr = "3.109.206.34:8021";
+    let addr = "3.108.190.91:8021";
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     let response = inbound
         .api("originate user/some_user_that_doesnt_exists karan")
@@ -23,7 +23,7 @@ async fn call_user_that_doesnt_exists() -> Result<(), EslError> {
 
 #[tokio::test]
 async fn send_recv_test() -> Result<(), EslError> {
-    let addr = "3.109.206.34:8021";
+    let addr = "3.108.190.91:8021";
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     let response = inbound.send_recv(b"api reloadxml\n\n").await?;
     let body = response.body().clone().unwrap();
@@ -33,7 +33,7 @@ async fn send_recv_test() -> Result<(), EslError> {
 
 #[tokio::test]
 async fn wrong_password() -> core::result::Result<(), EslError> {
-    let addr = "3.109.206.34:8021";
+    let addr = "3.108.190.91:8021";
     let result = Esl::inbound(addr, "ClueCons").await;
     assert_eq!(EslError::AuthFailed, result.unwrap_err());
     Ok(())
@@ -41,7 +41,7 @@ async fn wrong_password() -> core::result::Result<(), EslError> {
 
 #[tokio::test]
 async fn multiple_actions() -> core::result::Result<(), EslError> {
-    let addr = "3.109.206.34:8021";
+    let addr = "3.108.190.91:8021";
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     let body = inbound.bgapi("reloadxml").await;
     assert_eq!(Ok("[Success]".into()), body);
@@ -57,7 +57,7 @@ async fn multiple_actions() -> core::result::Result<(), EslError> {
 
 #[tokio::test]
 async fn concurrent_api() -> core::result::Result<(), EslError> {
-    let addr = "3.109.206.34:8021";
+    let addr = "3.108.190.91:8021";
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     let response1 = inbound.api("reloadxml");
     let response2 = inbound.api("originate user/some_user_that_doesnt_exists karan");
@@ -71,7 +71,7 @@ async fn concurrent_api() -> core::result::Result<(), EslError> {
 
 #[tokio::test]
 async fn concurrent_bgapi() -> core::result::Result<(), EslError> {
-    let addr = "3.109.206.34:8021";
+    let addr = "3.108.190.91:8021";
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     let response1 = inbound.bgapi("reloadxml");
     let response2 = inbound.bgapi("originate user/some_user_that_doesnt_exists karan");
@@ -88,7 +88,7 @@ async fn concurrent_bgapi() -> core::result::Result<(), EslError> {
 
 #[tokio::test]
 async fn connected_status() -> Result<(), EslError> {
-    let addr = "3.109.206.34:8021";
+    let addr = "3.108.190.91:8021";
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     assert_eq!(true, inbound.connected());
     Ok(())
@@ -96,7 +96,7 @@ async fn connected_status() -> Result<(), EslError> {
 
 #[tokio::test]
 async fn restart_external_profile() -> Result<(), EslError> {
-    let addr = "3.109.206.34:8021";
+    let addr = "3.108.190.91:8021";
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     let body = inbound.api("sofia profile external restart").await;
     assert_eq!(
@@ -108,7 +108,7 @@ async fn restart_external_profile() -> Result<(), EslError> {
 
 #[tokio::test]
 async fn uuid_kill() -> Result<(), EslError> {
-    let addr = "3.109.206.34:8021"; // Freeswitch host
+    let addr = "3.108.190.91:8021"; // Freeswitch host
     let password = "ClueCon";
     let inbound = Esl::inbound(addr, password).await?;
 

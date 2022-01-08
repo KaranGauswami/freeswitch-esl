@@ -1,11 +1,13 @@
-// #[deny(warnings)]
-pub mod code;
-pub mod connection;
-pub mod error;
-pub mod esl;
-pub mod event;
-pub mod io;
-pub mod outbound;
+#[deny(warnings)]
+pub(crate) mod code;
+pub(crate) mod connection;
+pub(crate) mod error;
+pub(crate) mod esl;
+pub(crate) mod event;
+pub(crate) mod io;
+pub(crate) mod outbound;
 
+pub use connection::EslConnection;
 pub use error::*;
 pub use esl::*;
+pub use event::*;
