@@ -80,7 +80,7 @@ impl EslConnection {
                     if let Some(event_type) = event.headers.get("Content-Type") {
                         match event_type.as_str().unwrap() {
                             "text/disconnect-notice" => {
-                                trace!("got disconnect notice")
+                                trace!("got disconnect notice");
                                 return;
                             }
                             "text/event-json" => {
@@ -204,6 +204,8 @@ impl EslConnection {
     pub async fn hangup(&self) -> Result<Event, EslError> {
         self.execute("hangup", "").await
     }
+
+    #[allow(clippy::too_many_arguments)]
     pub async fn play_and_get_digits(
         &self,
         min: u8,
