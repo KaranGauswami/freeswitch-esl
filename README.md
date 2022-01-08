@@ -7,8 +7,7 @@ FreeSwitch ESL implementation for Rust
 ## Inbound Example
 
 ```rust
-use freeswitch_esl::esl::Esl;
-use freeswitch_esl::EslError;
+use freeswitch_esl::{Esl, EslError};
 
 #[tokio::main]
 async fn main() -> Result<(), EslError> {
@@ -24,12 +23,13 @@ async fn main() -> Result<(), EslError> {
 
     Ok(())
 }
+
 ```
 
 ## Outbound Example
 
 ```rust
-use freeswitch_esl::{connection::EslConnection, Esl, EslError};
+use freeswitch_esl::{Esl, EslConnection, EslError};
 
 async fn process_call(conn: EslConnection) -> Result<(), EslError> {
     conn.answer().await?;
@@ -55,5 +55,4 @@ async fn main() -> Result<(), EslError> {
         tokio::spawn(async move { process_call(socket).await });
     }
 }
-
 ```
