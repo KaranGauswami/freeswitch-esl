@@ -229,8 +229,7 @@ impl EslConnection {
         let variable_name = uuid::Uuid::new_v4().to_string();
         let app_name = "play_and_get_digits";
         let app_args = format!(
-            "{} {} {} {} {} {} {} {}",
-            min, max, tries, timeout, terminators, file, invalid_file, variable_name
+            "{min} {max} {tries} {timeout} {terminators} {file} {invalid_file} {variable_name}",
         );
         let data = self.execute(app_name, &app_args).await?;
         let body = data.body.as_ref().unwrap();
