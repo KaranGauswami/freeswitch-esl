@@ -30,6 +30,9 @@ pub struct EslConnection {
 }
 
 impl EslConnection {
+    pub async fn call_uuid(&self) -> Option<String> {
+        self.call_uuid.clone()
+    }
     /// disconnects from freeswitch
     pub async fn disconnect(self) -> Result<(), EslError> {
         self.send_recv(b"exit").await?;
