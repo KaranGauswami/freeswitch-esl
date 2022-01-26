@@ -42,7 +42,7 @@ async fn process_call(conn: EslConnection) -> Result<(), EslError> {
     println!("got digit {}", digit);
     conn.playback("ivr/ivr-you_entered.wav").await?;
     conn.playback(&format!("digits/{}.wav", digit)).await?;
-    conn.hangup().await?;
+    conn.hangup("NORMAL_CLEARING").await?;
     Ok(())
 }
 
