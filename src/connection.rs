@@ -213,8 +213,8 @@ impl EslConnection {
     }
 
     /// For hanging up call in outbound mode
-    pub async fn hangup(&self) -> Result<Event, EslError> {
-        self.execute("hangup", "").await
+    pub async fn hangup(&self, reason: &str) -> Result<Event, EslError> {
+        self.execute("hangup", reason).await
     }
 
     #[allow(clippy::too_many_arguments)]
