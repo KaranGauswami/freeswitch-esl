@@ -37,7 +37,15 @@ async fn process_call(conn: EslConnection) -> Result<(), EslError> {
     conn.answer().await?;
     conn.playback("ivr/ivr-welcome.wav").await?;
     let digit = conn
-        .play_and_get_digits(1, 1, 3, 5000, "#", "conference/conf-pin.wav", "invalid.wav")
+        .play_and_get_digits(
+            1,
+            1,
+            3,
+            3000,
+            "#",
+            "conference/conf-pin.wav",
+            "conference/conf-bad-pin.wav",
+        )
         .await?;
     println!("got digit {}", digit);
     conn.playback("ivr/ivr-you_entered.wav").await?;
