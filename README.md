@@ -1,6 +1,8 @@
 # freeswitch-esl (WIP)
 
 ![workflow](https://github.com/KaranGauswami/freeswitch-esl/actions/workflows/rust.yml/badge.svg)
+[![Crates.io](https://img.shields.io/crates/v/freeswitch-esl.svg)](https://crates.io/crates/freeswitch-esl)
+[![Documentation](https://docs.rs/freeswitch-esl/badge.svg)](https://docs.rs/freeswitch-esl/)
 
 FreeSwitch ESL implementation for Rust
 
