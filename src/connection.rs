@@ -30,6 +30,7 @@ pub struct EslConnection {
 }
 
 impl EslConnection {
+    /// returns call uuid in outbound mode
     pub async fn call_uuid(&self) -> Option<String> {
         self.call_uuid.clone()
     }
