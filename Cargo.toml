@@ -1,8 +1,12 @@
 [package]
 name = "freeswitch-esl"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 authors = ["KaranGauswami <karangauswami.dev@gmail.com>"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "FreeSwitch ESL implementation for Rust"
+repository = "https://github.com/KaranGauswami/freeswitch-esl.git"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
