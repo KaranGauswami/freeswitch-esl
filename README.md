@@ -13,7 +13,7 @@ use freeswitch_esl::{Esl, EslError};
 
 #[tokio::main]
 async fn main() -> Result<(), EslError> {
-    let addr = "3.108.190.91:8021"; // Freeswitch host
+    let addr = "localhost:8021"; // Freeswitch host
     let password = "ClueCon";
     let inbound = Esl::inbound(addr, password).await?;
 
@@ -65,4 +65,9 @@ async fn main() -> Result<(), EslError> {
         tokio::spawn(async move { process_call(socket).await });
     }
 }
+
 ```
+
+## TODO
+
+- [ ] support for event listener

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use bytes::Buf;
-use log::trace;
 use serde_json::Value;
 use tokio_util::codec::{Decoder, Encoder};
+use tracing::trace;
 
 use crate::{event::Event, EslError};
 

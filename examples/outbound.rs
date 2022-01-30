@@ -23,7 +23,6 @@ async fn process_call(conn: EslConnection) -> Result<(), EslError> {
 
 #[tokio::main]
 async fn main() -> Result<(), EslError> {
-    env_logger::init();
     let addr = "0.0.0.0:8085"; // Listening address
     let listener = Esl::outbound(addr).await?;
 

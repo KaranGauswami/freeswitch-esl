@@ -4,7 +4,6 @@ use crate::esl::EslConnectionType;
 use crate::event::Event;
 use crate::io::EslCodec;
 use futures::SinkExt;
-use log::trace;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
@@ -17,6 +16,7 @@ use tokio::sync::{
 };
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, FramedWrite};
+use tracing::trace;
 #[derive(Debug)]
 /// contains Esl connection with freeswitch
 pub struct EslConnection {
