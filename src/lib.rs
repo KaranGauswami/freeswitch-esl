@@ -6,7 +6,7 @@
 //!
 //! ## Inbound Connection
 //!
-//!```rust
+//!```rust,no_run
 //! use freeswitch_esl::{Esl, EslError};
 //!
 //! #[tokio::main]
@@ -26,7 +26,7 @@
 //! ```
 //! ## Outbound Connection
 //!
-//!```rust
+//!```rust,no_run
 //! use freeswitch_esl::{Esl, EslConnection, EslError};
 //!
 //! async fn process_call(conn: EslConnection) -> Result<(), EslError> {
