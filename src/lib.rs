@@ -66,6 +66,7 @@
 
 pub(crate) mod code;
 pub(crate) mod connection;
+pub(crate) mod dp_tools;
 pub(crate) mod error;
 pub(crate) mod esl;
 pub(crate) mod event;
