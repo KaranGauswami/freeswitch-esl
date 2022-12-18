@@ -106,8 +106,7 @@ impl EslConnection {
                                     if let Some(tx) =
                                         inner_background_jobs.lock().await.remove(job_uuid)
                                     {
-                                        let _ = tx
-                                            .send(event)
+                                        tx.send(event)
                                             .expect("Unable to send channel message from bgapi");
                                     }
                                     trace!("continued");
@@ -123,7 +122,7 @@ impl EslConnection {
                                                     .await
                                                     .remove(job_uuid)
                                                 {
-                                                    let _ = tx.send(event).expect(
+                                                    tx.send(event).expect(
                                                         "Unable to send channel message from bgapi",
                                                     );
                                                 }
@@ -141,7 +140,7 @@ impl EslConnection {
                         }
                     }
                     if let Some(tx) = inner_commands.lock().await.pop_front() {
-                        let _ = tx.send(event).expect("msg");
+                        tx.send(event).expect("msg");
                     }
                 }
             }

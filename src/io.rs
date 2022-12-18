@@ -62,25 +62,25 @@ impl Decoder for EslCodec {
         let headers = parse_header(&src[..(header_end - 1)])?;
         trace!("parsed headers are : {:?}", headers);
         let body_start = header_end + 1;
-        if let Some(length) = headers.get("Content-Length") {
-            let length = length.as_str().unwrap();
-            let body_length = length.parse()?;
-            if src.len() < (header_end + body_length + 1) {
-                trace!("returned because size was not enough");
-                return Ok(None);
-            }
-            let body = parse_body(&src[body_start..], body_length);
-            src.advance(body_start + body_length);
-            Ok(Some(Event {
-                headers,
-                body: Some(body),
-            }))
-        } else {
+        let Some(length) = headers.get("Content-Length")else {
             src.advance(body_start);
-            Ok(Some(Event {
+            return Ok(Some(Event {
                 headers,
                 body: None,
             }))
+        };
+
+        let length = length.as_str().unwrap();
+        let body_length = length.parse()?;
+        if src.len() < (header_end + body_length + 1) {
+            trace!("returned because size was not enough");
+            return Ok(None);
         }
+        let body = parse_body(&src[body_start..], body_length);
+        src.advance(body_start + body_length);
+        Ok(Some(Event {
+            headers,
+            body: Some(body),
+        }))
     }
 }

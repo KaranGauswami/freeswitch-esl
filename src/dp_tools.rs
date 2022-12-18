@@ -31,12 +31,11 @@ impl EslConnection {
         let body = data.body.as_ref().unwrap();
         let body = parse_json_body(body).unwrap();
         let result = body.get(&format!("variable_{}", variable_name));
-        if let Some(digit) = result {
-            let digit = digit.as_str().unwrap().to_string();
-            Ok(digit)
-        } else {
-            Err(EslError::NoInput)
-        }
+        let Some(digit) = result else {
+            return Err(EslError::NoInput)
+        };
+        let digit = digit.as_str().unwrap().to_string();
+        Ok(digit)
     }
 }
 
