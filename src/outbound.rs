@@ -15,7 +15,7 @@ impl Outbound {
     pub async fn accept(&self) -> Result<(EslConnection, SocketAddr), EslError> {
         let (stream, addr) = self.listener.accept().await?;
         let connection =
-            EslConnection::with_tcpstream(stream, "None", EslConnectionType::Outbound).await?;
+            EslConnection::with_tcpstream(stream, "None", EslConnectionType::Outbound, None).await?;
         Ok((connection, addr))
     }
 }
