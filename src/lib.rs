@@ -1,4 +1,4 @@
-#![deny(missing_docs, rust_2018_idioms)]
+#![deny(missing_docs)]
 
 //! Esl Create for interacting with freeswitch
 //!

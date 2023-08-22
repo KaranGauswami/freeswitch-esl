@@ -9,6 +9,39 @@ impl EslConnection {
     pub async fn playback(&self, file_path: &str) -> Result<Event, EslError> {
         self.execute("playback", file_path).await
     }
+ 
+    /// record_session during outbound mode
+    pub async fn record_session(&self, file_path: &str) -> Result<Event, EslError> {
+        self.execute("record_session", file_path).await
+    }
+ 
+    /// send dtmf during outbound mode
+    pub async fn send_dtmf(&self, dtmf_str: &str) -> Result<Event, EslError> {
+        self.execute("send_dtmf", dtmf_str).await
+    }
+
+    /// wait for silence during outbound mode
+    pub async fn wait_for_silence(&self, silence_str: &str) -> Result<Event, EslError> {
+        self.execute("wait_for_silence", silence_str).await
+    }
+
+    /// sleep for specified milliseconds in outbound mode
+    pub async fn sleep(&self, millis: i128) -> Result<Event, EslError> {
+        self.execute("sleep", &millis.to_string()).await
+    }
+
+    ///set a channel variable 
+    pub async fn set_variable(&self, var: &str, value: &str) -> Result<Event, EslError> {
+        let args = format!("{}={}", var, value);
+        self.execute("set", &args).await
+    }
+ 
+    ///add  a freeswitch log
+    pub async fn fs_log(&self, loglevel: &str, msg: &str) -> Result<Event, EslError> {
+        let args = format!("{} {}", loglevel, msg);
+        self.execute("log", &args).await
+    }
+    
 
     #[allow(clippy::too_many_arguments)]
     /// Used for mod_play_and_get_digits
