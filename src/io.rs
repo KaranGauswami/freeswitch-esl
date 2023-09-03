@@ -62,12 +62,12 @@ impl Decoder for EslCodec {
         let headers = parse_header(&src[..(header_end - 1)])?;
         trace!("parsed headers are : {:?}", headers);
         let body_start = header_end + 1;
-        let Some(length) = headers.get("Content-Length")else {
+        let Some(length) = headers.get("Content-Length") else {
             src.advance(body_start);
             return Ok(Some(Event {
                 headers,
                 body: None,
-            }))
+            }));
         };
 
         let length = length.as_str().unwrap();

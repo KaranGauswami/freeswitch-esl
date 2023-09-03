@@ -32,7 +32,7 @@ impl EslConnection {
         let body = parse_json_body(body).unwrap();
         let result = body.get(&format!("variable_{}", variable_name));
         let Some(digit) = result else {
-            return Err(EslError::NoInput)
+            return Err(EslError::NoInput);
         };
         let digit = digit.as_str().unwrap().to_string();
         Ok(digit)
