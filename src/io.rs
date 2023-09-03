@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bytes::Buf;
 use serde_json::Value;
 use tokio_util::codec::{Decoder, Encoder};
-use tracing::trace;
+use tracing::{trace, warn};
 
 use crate::{event::Event, EslError};
 
@@ -40,10 +40,15 @@ fn parse_header(src: &[u8]) -> Result<HashMap<String, Value>, std::io::Error> {
     let a = data.split('\n');
     let mut hash = HashMap::new();
     for line in a {
-        let mut key_value = line.split(':');
-        let key = key_value.next().unwrap().trim().to_string();
-        let val = key_value.next().unwrap().trim().to_string();
-        hash.insert(key, serde_json::json!(val));
+        let parts: Vec<&str> = line.split(':').collect();
+        if parts.len() == 2 {
+            // SAFETY: Index access is safe beacue we have checked the length
+            let key = parts[0].trim();
+            let val = parts[1].trim();
+            hash.insert(key.to_string(), serde_json::json!(val.to_string()));
+        } else {
+            warn!("Invalid formatting while parsing header");
+        }
     }
     trace!("returning hashmap : {:?}", hash);
     Ok(hash)
@@ -55,10 +60,10 @@ impl Decoder for EslCodec {
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         trace!("decode");
         let header_end = get_header_end(src);
-        if header_end.is_none() {
-            return Ok(None);
-        }
-        let header_end = header_end.unwrap();
+        let header_end = match header_end {
+            Some(he) => he,
+            None => return Ok(None),
+        };
         let headers = parse_header(&src[..(header_end - 1)])?;
         trace!("parsed headers are : {:?}", headers);
         let body_start = header_end + 1;
