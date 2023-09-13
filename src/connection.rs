@@ -91,7 +91,7 @@ impl EslConnection {
                                 trace!("got disconnect notice");
                                 return;
                             }
-                            "text/event-json" => {
+                            "text/event-jsons" => {
                                 trace!("got event-json");
                                 let data = event
                                     .body()
