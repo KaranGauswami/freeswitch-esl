@@ -29,10 +29,10 @@ async fn main() -> Result<(), EslError> {
     let addr = "0.0.0.0:8085"; // Listening address
     println!("Listening on {}", addr);
     let listener = TcpListener::bind(addr).await?;
-    let listener = Esl::outbound(listener).await?;
 
     loop {
         let (socket, _) = listener.accept().await?;
+        let socket = Esl::outbound(socket).await?;
         tokio::spawn(async move { process_call(socket).await });
     }
 }

@@ -1,6 +1,6 @@
-use tokio::net::{TcpListener, ToSocketAddrs};
+use tokio::net::{TcpStream, ToSocketAddrs};
 
-use crate::{connection::EslConnection, outbound::Outbound, EslError};
+use crate::{connection::EslConnection, EslError};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum EslConnectionType {
     Inbound,
@@ -18,7 +18,9 @@ impl Esl {
     }
 
     /// Creates new server for outbound connection
-    pub async fn outbound(listener: TcpListener) -> Result<Outbound, EslError> {
-        Outbound::new(listener).await
+    pub async fn outbound(stream: TcpStream) -> Result<EslConnection, EslError> {
+        let connection =
+            EslConnection::with_tcpstream(stream, "None", EslConnectionType::Outbound).await?;
+        Ok(connection)
     }
 }
