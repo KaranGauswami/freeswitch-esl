@@ -1,4 +1,4 @@
-use tokio::net::{TcpStream, ToSocketAddrs};
+use tokio::net::TcpStream;
 
 use crate::{connection::EslConnection, EslError};
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -11,16 +11,15 @@ pub struct Esl;
 impl Esl {
     /// Creates new inbound connection to freeswitch
     pub async fn inbound(
-        addr: impl ToSocketAddrs,
+        stream: TcpStream,
         password: impl ToString,
     ) -> Result<EslConnection, EslError> {
-        EslConnection::new(addr, password, EslConnectionType::Inbound).await
+        EslConnection::new(stream, password, EslConnectionType::Inbound).await
     }
 
     /// Creates new server for outbound connection
     pub async fn outbound(stream: TcpStream) -> Result<EslConnection, EslError> {
-        let connection =
-            EslConnection::with_tcpstream(stream, "None", EslConnectionType::Outbound).await?;
+        let connection = EslConnection::new(stream, "None", EslConnectionType::Outbound).await?;
         Ok(connection)
     }
 }
