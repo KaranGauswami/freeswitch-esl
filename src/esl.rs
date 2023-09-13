@@ -1,4 +1,4 @@
-use tokio::net::ToSocketAddrs;
+use tokio::net::{TcpListener, ToSocketAddrs};
 
 use crate::{connection::EslConnection, outbound::Outbound, EslError};
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,7 +18,7 @@ impl Esl {
     }
 
     /// Creates new server for outbound connection
-    pub async fn outbound(addr: impl ToSocketAddrs) -> Result<Outbound, EslError> {
-        Outbound::bind(addr).await
+    pub async fn outbound(listener: TcpListener) -> Result<Outbound, EslError> {
+        Outbound::new(listener).await
     }
 }

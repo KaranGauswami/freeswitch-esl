@@ -28,6 +28,7 @@
 //!
 //!```rust,no_run
 //! use freeswitch_esl::{Esl, EslConnection, EslError};
+//! use tokio::net::TcpListener;
 //!
 //! async fn process_call(conn: EslConnection) -> Result<(), EslError> {
 //!     conn.answer().await?;
@@ -55,10 +56,11 @@
 //! async fn main() -> Result<(), EslError> {
 //!     let addr = "0.0.0.0:8085"; // Listening address
 //!     println!("Listening on {}", addr);
-//!     let listener = Esl::outbound(addr).await?;
+//!     let listener = TcpListener::bind(addr).await?;
+//!     let server = Esl::outbound(listener).await?;
 //!
 //!     loop {
-//!         let (socket, _) = listener.accept().await?;
+//!         let (socket, _) = server.accept().await?;
 //!         tokio::spawn(async move { process_call(socket).await });
 //!     }
 //! }
