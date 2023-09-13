@@ -16,7 +16,7 @@ pub enum EslError {
     ConnectionError(String),
 
     #[error("{0:?}")]
-    ApiError(String),
+    ApiError(String)
 
     #[error("")]
     CodeParseError(),
