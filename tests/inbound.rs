@@ -240,7 +240,8 @@ async fn concurrent_bgapi() -> core::result::Result<(), EslError> {
 #[tokio::test]
 #[timeout(30000)]
 async fn connected_status() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
+    // let (_, addr) = mock_test_server().await?;
+    let addr = "localhost:8021";
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     assert!(inbound.connected());
     Ok(())
