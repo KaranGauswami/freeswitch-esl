@@ -31,7 +31,7 @@ async fn mock_test_server() -> Result<(JoinHandle<()>, SocketAddr)> {
                     };
                     received_data.extend_from_slice(&buffer[0..n]);
                     // Check for two newline characters in the received data
-                    if let Some(index) = received_data
+                    while let Some(index) = received_data
                         .windows(2)
                         .position(|window| window == b"\n\n")
                     {
@@ -139,10 +139,9 @@ async fn reloadxml() -> Result<()> {
     Ok(())
 }
 #[tokio::test]
-#[timeout(30000)]
+#[timeout(10000)]
 async fn reloadxml_with_bgapi() -> Result<()> {
     let (_, addr) = mock_test_server().await?;
-    // let addr = "localhost:8091";
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     let response = inbound.bgapi("reloadxml").await;
     assert_eq!(Ok("[Success]".into()), response);
@@ -150,7 +149,7 @@ async fn reloadxml_with_bgapi() -> Result<()> {
 }
 
 #[tokio::test]
-#[timeout(30000)]
+#[timeout(10000)]
 async fn call_user_that_doesnt_exists() -> Result<()> {
     let (_, addr) = mock_test_server().await?;
     let inbound = Esl::inbound(addr, "ClueCon").await?;
@@ -163,7 +162,7 @@ async fn call_user_that_doesnt_exists() -> Result<()> {
 }
 
 #[tokio::test]
-#[timeout(30000)]
+#[timeout(10000)]
 async fn send_recv_test() -> Result<()> {
     let (_, addr) = mock_test_server().await?;
     let inbound = Esl::inbound(addr, "ClueCon").await?;
@@ -174,7 +173,7 @@ async fn send_recv_test() -> Result<()> {
 }
 
 #[tokio::test]
-#[timeout(30000)]
+#[timeout(10000)]
 async fn wrong_password() -> Result<()> {
     let (_, addr) = mock_test_server().await?;
     let result = Esl::inbound(addr, "ClueCons").await;
@@ -183,7 +182,7 @@ async fn wrong_password() -> Result<()> {
 }
 
 #[tokio::test]
-#[timeout(30000)]
+#[timeout(10000)]
 async fn multiple_actions() -> Result<()> {
     let (_, addr) = mock_test_server().await?;
     let inbound = Esl::inbound(addr, "ClueCon").await?;
@@ -199,9 +198,8 @@ async fn multiple_actions() -> Result<()> {
     Ok(())
 }
 
-#[ignore]
 #[tokio::test]
-#[timeout(30000)]
+#[timeout(10000)]
 async fn concurrent_api() -> Result<()> {
     let (_, addr) = mock_test_server().await?;
     let inbound = Esl::inbound(addr, "ClueCon").await?;
@@ -218,11 +216,11 @@ async fn concurrent_api() -> Result<()> {
     Ok(())
 }
 
-#[ignore]
 #[tokio::test]
-#[timeout(30000)]
-async fn concurrent_bgapi() -> core::result::Result<(), EslError> {
-    let addr = "localhost:8021";
+#[timeout(10000)]
+async fn concurrent_bgapi() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+
     let inbound = Esl::inbound(addr, "ClueCon").await?;
     let response1 = inbound.bgapi("reloadxml");
     let response2 = inbound.bgapi("originate user/some_user_that_doesnt_exists karan");
@@ -238,7 +236,7 @@ async fn concurrent_bgapi() -> core::result::Result<(), EslError> {
 }
 
 #[tokio::test]
-#[timeout(30000)]
+#[timeout(10000)]
 async fn connected_status() -> Result<()> {
     let (_, addr) = mock_test_server().await?;
     let inbound = Esl::inbound(addr, "ClueCon").await?;
@@ -247,7 +245,7 @@ async fn connected_status() -> Result<()> {
 }
 
 #[tokio::test]
-#[timeout(30000)]
+#[timeout(10000)]
 async fn restart_external_profile() -> Result<()> {
     let (_, addr) = mock_test_server().await?;
     let inbound = Esl::inbound(addr, "ClueCon").await?;
@@ -260,7 +258,7 @@ async fn restart_external_profile() -> Result<()> {
 }
 
 #[tokio::test]
-#[timeout(30000)]
+#[timeout(10000)]
 async fn uuid_kill() -> Result<()> {
     let (_, addr) = mock_test_server().await?;
     let password = "ClueCon";
