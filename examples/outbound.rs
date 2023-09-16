@@ -1,3 +1,5 @@
+use tokio::net::TcpListener;
+
 use freeswitch_esl::{Esl, EslConnection, EslError};
 
 async fn process_call(conn: EslConnection) -> Result<(), EslError> {
@@ -15,7 +17,7 @@ async fn process_call(conn: EslConnection) -> Result<(), EslError> {
             "conference/conf-bad-pin.wav",
         )
         .await?;
-    println!("got digit {}", digit);
+    println!("Received Digit: {}", digit);
     conn.playback("ivr/ivr-you_entered.wav").await?;
     conn.playback(&format!("digits/{}.wav", digit)).await?;
     conn.hangup("NORMAL_CLEARING").await?;
@@ -26,10 +28,11 @@ async fn process_call(conn: EslConnection) -> Result<(), EslError> {
 async fn main() -> Result<(), EslError> {
     let addr = "0.0.0.0:8085"; // Listening address
     println!("Listening on {}", addr);
-    let listener = Esl::outbound(addr).await?;
+    let listener = TcpListener::bind(addr).await?;
 
     loop {
         let (socket, _) = listener.accept().await?;
+        let socket = Esl::outbound(socket).await?;
         tokio::spawn(async move { process_call(socket).await });
     }
 }

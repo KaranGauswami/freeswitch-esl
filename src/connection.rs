@@ -3,26 +3,25 @@ use crate::error::EslError;
 use crate::esl::EslConnectionType;
 use crate::event::Event;
 use crate::io::EslCodec;
-use futures::SinkExt;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
 use std::sync::{atomic::AtomicBool, Arc};
-use tokio::io::WriteHalf;
-use tokio::net::{TcpStream, ToSocketAddrs};
+use tokio::io::{AsyncWriteExt, WriteHalf};
+use tokio::net::TcpStream;
 use tokio::sync::{
     oneshot::{channel, Sender},
     Mutex,
 };
 use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, FramedWrite};
-use tracing::trace;
+use tokio_util::codec::FramedRead;
+use tracing::{error, trace};
 #[derive(Debug)]
 /// contains Esl connection with freeswitch
 pub struct EslConnection {
     password: String,
     commands: Arc<Mutex<VecDeque<Sender<Event>>>>,
-    transport_tx: Arc<Mutex<FramedWrite<WriteHalf<TcpStream>, EslCodec>>>,
+    transport_tx: Arc<Mutex<WriteHalf<TcpStream>>>,
     background_jobs: Arc<Mutex<HashMap<String, Sender<Event>>>>,
     connected: AtomicBool,
     pub(crate) call_uuid: Option<String>,
@@ -46,7 +45,12 @@ impl EslConnection {
     }
     pub(crate) async fn send(&self, item: &[u8]) -> Result<(), EslError> {
         let mut transport = self.transport_tx.lock().await;
-        transport.send(item).await
+        let error = transport.write_all(item).await;
+        error!("Error writing data into TCP stream {:?}", error);
+        // TODO: fix this write
+        let error = transport.write_all(b"\n\n").await;
+        error!("Error writing data into TCP stream {:?}", error);
+        Ok(())
     }
     /// sends raw message to freeswitch and receives reply
     pub async fn send_recv(&self, item: &[u8]) -> Result<Event, EslError> {
@@ -56,7 +60,7 @@ impl EslConnection {
         Ok(rx.await?)
     }
 
-    pub(crate) async fn with_tcpstream(
+    pub(crate) async fn new(
         stream: TcpStream,
         password: impl ToString,
         connection_type: EslConnectionType,
@@ -69,7 +73,7 @@ impl EslConnection {
         let esl_codec = EslCodec {};
         let (read_half, write_half) = tokio::io::split(stream);
         let mut transport_rx = FramedRead::new(read_half, esl_codec.clone());
-        let transport_tx = Arc::new(Mutex::new(FramedWrite::new(write_half, esl_codec.clone())));
+        let transport_tx = Arc::new(Mutex::new(write_half));
         if connection_type == EslConnectionType::Inbound {
             transport_rx.next().await;
         }
@@ -182,14 +186,6 @@ impl EslConnection {
         self.send_recv(message.as_bytes()).await
     }
 
-    pub(crate) async fn new(
-        socket: impl ToSocketAddrs,
-        password: impl ToString,
-        connection_type: EslConnectionType,
-    ) -> Result<Self, EslError> {
-        let stream = TcpStream::connect(socket).await?;
-        Self::with_tcpstream(stream, password, connection_type).await
-    }
     pub(crate) async fn auth(&self) -> Result<String, EslError> {
         let auth_response = self
             .send_recv(format!("auth {}", self.password).as_bytes())

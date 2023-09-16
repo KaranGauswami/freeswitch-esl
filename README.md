@@ -12,12 +12,14 @@ FreeSwitch ESL implementation for Rust
 
 ```rust
 use freeswitch_esl::{Esl, EslError};
+use tokio::net::TcpStream;
 
 #[tokio::main]
 async fn main() -> Result<(), EslError> {
     let addr = "localhost:8021"; // Freeswitch host
     let password = "ClueCon";
-    let inbound = Esl::inbound(addr, password).await?;
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, password).await?;
 
     let reloadxml = inbound.api("reloadxml").await?;
     println!("reloadxml response : {:?}", reloadxml);
@@ -33,6 +35,7 @@ async fn main() -> Result<(), EslError> {
 ## Outbound Example
 
 ```rust
+use tokio::net::TcpListener;
 use freeswitch_esl::{Esl, EslConnection, EslError};
 
 async fn process_call(conn: EslConnection) -> Result<(), EslError> {
@@ -49,7 +52,6 @@ async fn process_call(conn: EslConnection) -> Result<(), EslError> {
             "conference/conf-bad-pin.wav",
         )
         .await?;
-    println!("got digit {}", digit);
     conn.playback("ivr/ivr-you_entered.wav").await?;
     conn.playback(&format!("digits/{}.wav", digit)).await?;
     conn.hangup("NORMAL_CLEARING").await?;
@@ -58,12 +60,13 @@ async fn process_call(conn: EslConnection) -> Result<(), EslError> {
 
 #[tokio::main]
 async fn main() -> Result<(), EslError> {
-    env_logger::init();
     let addr = "0.0.0.0:8085"; // Listening address
-    let listener = Esl::outbound(addr).await?;
+    println!("Listening on {}", addr);
+    let listener = TcpListener::bind(addr).await?;
 
     loop {
         let (socket, _) = listener.accept().await?;
+        let socket = Esl::outbound(socket).await?;
         tokio::spawn(async move { process_call(socket).await });
     }
 }

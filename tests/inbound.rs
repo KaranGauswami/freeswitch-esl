@@ -4,12 +4,169 @@ use ntest::timeout;
 use regex::Regex;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
     task::JoinHandle,
 };
 
 use anyhow::Result;
 use freeswitch_esl::{Esl, EslError};
+
+#[tokio::test]
+#[timeout(1000)]
+async fn reloadxml() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, "ClueCon").await?;
+    let response = inbound.api("reloadxml").await;
+    assert_eq!(Ok("[Success]".into()), response);
+    Ok(())
+}
+#[tokio::test]
+#[timeout(30000)]
+async fn reloadxml_with_bgapi() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+    // let addr = "localhost:8091";
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, "ClueCon").await?;
+    let response = inbound.bgapi("reloadxml").await;
+    assert_eq!(Ok("[Success]".into()), response);
+    Ok(())
+}
+
+#[tokio::test]
+#[timeout(30000)]
+async fn call_user_that_doesnt_exists() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, "ClueCon").await?;
+    let response = inbound
+        .api("originate user/some_user_that_doesnt_exists karan")
+        .await
+        .unwrap_err();
+    assert_eq!(EslError::ApiError("SUBSCRIBER_ABSENT".into()), response);
+    Ok(())
+}
+
+#[tokio::test]
+#[timeout(30000)]
+async fn send_recv_test() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, "ClueCon").await?;
+    let response = inbound.send_recv(b"api reloadxml").await?;
+    let body = response.body().clone().unwrap();
+    assert_eq!("+OK [Success]\n", body);
+    Ok(())
+}
+
+#[tokio::test]
+#[timeout(30000)]
+async fn wrong_password() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+    let stream = TcpStream::connect(addr).await?;
+    let result = Esl::inbound(stream, "ClueCons").await;
+    assert_eq!(EslError::AuthFailed, result.unwrap_err());
+    Ok(())
+}
+
+#[tokio::test]
+#[timeout(30000)]
+async fn multiple_actions() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, "ClueCon").await?;
+    let body = inbound.bgapi("reloadxml").await;
+    assert_eq!(Ok("[Success]".into()), body);
+    let body = inbound
+        .bgapi("originate user/some_user_that_doesnt_exists karan")
+        .await;
+    assert_eq!(
+        Err(EslError::ApiError("SUBSCRIBER_ABSENT".to_string())),
+        body
+    );
+    Ok(())
+}
+
+#[ignore]
+#[tokio::test]
+#[timeout(30000)]
+async fn concurrent_api() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, "ClueCon").await?;
+    let response1 = inbound.api("reloadxml");
+    let response2 = inbound.api("originate user/some_user_that_doesnt_exists karan");
+    let response3 = inbound.api("reloadxml");
+    let (response1, response2, response3) = tokio::join!(response1, response2, response3);
+    assert_eq!(Ok("[Success]".into()), response1);
+    assert_eq!(
+        Err(EslError::ApiError("SUBSCRIBER_ABSENT".into())),
+        response2
+    );
+    assert_eq!(Ok("[Success]".into()), response3);
+    Ok(())
+}
+
+#[ignore]
+#[tokio::test]
+#[timeout(30000)]
+async fn concurrent_bgapi() -> core::result::Result<(), EslError> {
+    let addr = "localhost:8021";
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, "ClueCon").await?;
+    let response1 = inbound.bgapi("reloadxml");
+    let response2 = inbound.bgapi("originate user/some_user_that_doesnt_exists karan");
+    let response3 = inbound.bgapi("reloadxml");
+    let (response1, response2, response3) = tokio::join!(response1, response2, response3);
+    assert_eq!(Ok("[Success]".to_string()), response1);
+    assert_eq!(
+        Err(EslError::ApiError("SUBSCRIBER_ABSENT".to_string())),
+        response2
+    );
+    assert_eq!(Ok("[Success]".to_string()), response3);
+    Ok(())
+}
+
+#[tokio::test]
+#[timeout(30000)]
+async fn connected_status() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, "ClueCon").await?;
+    assert!(inbound.connected());
+    Ok(())
+}
+
+#[tokio::test]
+#[timeout(30000)]
+async fn restart_external_profile() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, "ClueCon").await?;
+    let body = inbound.api("sofia profile external restart").await;
+    assert_eq!(
+        Ok("Reload XML [Success]\nrestarting: external".into()),
+        body
+    );
+    Ok(())
+}
+
+#[tokio::test]
+#[timeout(30000)]
+async fn uuid_kill() -> Result<()> {
+    let (_, addr) = mock_test_server().await?;
+    let password = "ClueCon";
+    let stream = TcpStream::connect(addr).await?;
+    let inbound = Esl::inbound(stream, password).await?;
+
+    let uuid = inbound
+        .api("originate {origination_uuid=karan}loopback/1000 &conference(karan)")
+        .await?;
+    assert_eq!("karan", uuid);
+    let uuid_kill_response = inbound.api(&format!("uuid_kill karan")).await?;
+    assert_eq!("", uuid_kill_response);
+    Ok(())
+}
 
 async fn mock_test_server() -> Result<(JoinHandle<()>, SocketAddr)> {
     let listener = TcpListener::bind("localhost:0").await?;
@@ -128,149 +285,4 @@ async fn mock_test_server() -> Result<(JoinHandle<()>, SocketAddr)> {
         }
     });
     Ok((server, local_address))
-}
-#[tokio::test]
-#[timeout(1000)]
-async fn reloadxml() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
-    let inbound = Esl::inbound(addr, "ClueCon").await?;
-    let response = inbound.api("reloadxml").await;
-    assert_eq!(Ok("[Success]".into()), response);
-    Ok(())
-}
-#[tokio::test]
-#[timeout(30000)]
-async fn reloadxml_with_bgapi() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
-    // let addr = "localhost:8091";
-    let inbound = Esl::inbound(addr, "ClueCon").await?;
-    let response = inbound.bgapi("reloadxml").await;
-    assert_eq!(Ok("[Success]".into()), response);
-    Ok(())
-}
-
-#[tokio::test]
-#[timeout(30000)]
-async fn call_user_that_doesnt_exists() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
-    let inbound = Esl::inbound(addr, "ClueCon").await?;
-    let response = inbound
-        .api("originate user/some_user_that_doesnt_exists karan")
-        .await
-        .unwrap_err();
-    assert_eq!(EslError::ApiError("SUBSCRIBER_ABSENT".into()), response);
-    Ok(())
-}
-
-#[tokio::test]
-#[timeout(30000)]
-async fn send_recv_test() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
-    let inbound = Esl::inbound(addr, "ClueCon").await?;
-    let response = inbound.send_recv(b"api reloadxml").await?;
-    let body = response.body().clone().unwrap();
-    assert_eq!("+OK [Success]\n", body);
-    Ok(())
-}
-
-#[tokio::test]
-#[timeout(30000)]
-async fn wrong_password() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
-    let result = Esl::inbound(addr, "ClueCons").await;
-    assert_eq!(EslError::AuthFailed, result.unwrap_err());
-    Ok(())
-}
-
-#[tokio::test]
-#[timeout(30000)]
-async fn multiple_actions() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
-    let inbound = Esl::inbound(addr, "ClueCon").await?;
-    let body = inbound.bgapi("reloadxml").await;
-    assert_eq!(Ok("[Success]".into()), body);
-    let body = inbound
-        .bgapi("originate user/some_user_that_doesnt_exists karan")
-        .await;
-    assert_eq!(
-        Err(EslError::ApiError("SUBSCRIBER_ABSENT".to_string())),
-        body
-    );
-    Ok(())
-}
-
-#[ignore]
-#[tokio::test]
-#[timeout(30000)]
-async fn concurrent_api() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
-    let inbound = Esl::inbound(addr, "ClueCon").await?;
-    let response1 = inbound.api("reloadxml");
-    let response2 = inbound.api("originate user/some_user_that_doesnt_exists karan");
-    let response3 = inbound.api("reloadxml");
-    let (response1, response2, response3) = tokio::join!(response1, response2, response3);
-    assert_eq!(Ok("[Success]".into()), response1);
-    assert_eq!(
-        Err(EslError::ApiError("SUBSCRIBER_ABSENT".into())),
-        response2
-    );
-    assert_eq!(Ok("[Success]".into()), response3);
-    Ok(())
-}
-
-#[ignore]
-#[tokio::test]
-#[timeout(30000)]
-async fn concurrent_bgapi() -> core::result::Result<(), EslError> {
-    let addr = "localhost:8021";
-    let inbound = Esl::inbound(addr, "ClueCon").await?;
-    let response1 = inbound.bgapi("reloadxml");
-    let response2 = inbound.bgapi("originate user/some_user_that_doesnt_exists karan");
-    let response3 = inbound.bgapi("reloadxml");
-    let (response1, response2, response3) = tokio::join!(response1, response2, response3);
-    assert_eq!(Ok("[Success]".to_string()), response1);
-    assert_eq!(
-        Err(EslError::ApiError("SUBSCRIBER_ABSENT".to_string())),
-        response2
-    );
-    assert_eq!(Ok("[Success]".to_string()), response3);
-    Ok(())
-}
-
-#[tokio::test]
-#[timeout(30000)]
-async fn connected_status() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
-    let inbound = Esl::inbound(addr, "ClueCon").await?;
-    assert!(inbound.connected());
-    Ok(())
-}
-
-#[tokio::test]
-#[timeout(30000)]
-async fn restart_external_profile() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
-    let inbound = Esl::inbound(addr, "ClueCon").await?;
-    let body = inbound.api("sofia profile external restart").await;
-    assert_eq!(
-        Ok("Reload XML [Success]\nrestarting: external".into()),
-        body
-    );
-    Ok(())
-}
-
-#[tokio::test]
-#[timeout(30000)]
-async fn uuid_kill() -> Result<()> {
-    let (_, addr) = mock_test_server().await?;
-    let password = "ClueCon";
-    let inbound = Esl::inbound(addr, password).await?;
-
-    let uuid = inbound
-        .api("originate {origination_uuid=karan}loopback/1000 &conference(karan)")
-        .await?;
-    assert_eq!("karan", uuid);
-    let uuid_kill_response = inbound.api(&format!("uuid_kill karan")).await?;
-    assert_eq!("", uuid_kill_response);
-    Ok(())
 }
