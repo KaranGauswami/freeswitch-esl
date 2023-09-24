@@ -1,6 +1,5 @@
 use crate::error::EslError;
 use crate::esl::EslConnectionType;
-use crate::event::Event;
 use crate::parser::{
     parse_any_freeswitch_event, parse_auth_request, CommandAndApiReplyBody, FreeswitchReply,
 };
@@ -14,7 +13,7 @@ use tokio::sync::{
     oneshot::{channel, Sender},
     Mutex,
 };
-use tracing::{error, trace};
+use tracing::{error, info, trace, warn};
 #[derive(Debug)]
 /// contains Esl connection with freeswitch
 pub struct EslConnection {
@@ -78,7 +77,7 @@ impl EslConnection {
         }
         let (mut read_half, write_half) = tokio::io::split(stream);
         let transport_tx = Arc::new(Mutex::new(write_half));
-        let connection = Self {
+        let mut connection = Self {
             password: password.to_string(),
             commands,
             background_jobs,
@@ -113,29 +112,77 @@ impl EslConnection {
                                 }
                             }
                             FreeswitchReply::Event(n) => {
-                                println!("event {:?}", n.headers.get("Event-Name"));
                                 if let (Some(job_uuid), Some(event_name)) =
                                     (n.headers.get("Job-UUID"), n.headers.get("Event-Name"))
                                 {
                                     if event_name == "BACKGROUND_JOB" {
                                         if let Some(tx) = inner_background_jobs.remove(job_uuid) {
-                                            match tx.1.send(FreeswitchReply::Event(n)) {
-                                                Ok(_) => println!("background api was notified"),
+                                            match tx.1.send(FreeswitchReply::Event(n.clone())) {
+                                                Ok(_) => {}
                                                 Err(e) => {
-                                                    println!(
+                                                    warn!(
                                                         "error notifying background jobs {:?}",
                                                         e
                                                     );
                                                 }
                                             }
                                         } else {
-                                            println!(
+                                            warn!(
                                                 "this is background job was not present {:?}",
                                                 job_uuid
                                             );
                                         }
-                                    } else {
-                                        println!("this is not the background sends");
+                                    }
+                                }
+                                if let Some(event_name) = n.headers.get("Event-Name") {
+                                    if event_name == "CHANNEL_EXECUTE_COMPLETE" {
+                                        if let Some(application_uuid) =
+                                            n.headers.get("Application-UUID")
+                                        {
+                                            if let Some(tx) =
+                                                inner_background_jobs.remove(application_uuid)
+                                            {
+                                                match tx.1.send(
+                                                    FreeswitchReply::CommandAndApiReply(
+                                                        CommandAndApiReplyBody {
+                                                            headers: n.headers.clone(),
+                                                            code: n.code.clone(),
+                                                            reply_text: n.body.clone(),
+                                                            job_uuid: None,
+                                                        },
+                                                    ),
+                                                ) {
+                                                    Ok(_) => {}
+                                                    Err(e) => {
+                                                        warn!(
+                                                            "error notifying background jobs {:?}",
+                                                            e
+                                                        );
+                                                    }
+                                                }
+                                            } else {
+                                                warn!(
+                                                    "this is background job was not present {:?}",
+                                                    application_uuid
+                                                );
+                                            }
+                                        }
+                                    }
+                                    if event_name == "CHANNEL_DATA" {
+                                        info!("content-type {:?}", n.headers.get("Content-Type"));
+                                        if let Some(content_type) = n.headers.get("Content-Type") {
+                                            if content_type == "command/reply" {
+                                                if let Some(tx) =
+                                                    inner_commands.lock().await.pop_front()
+                                                {
+                                                    tx.send(CommandAndApiReplyBody {
+                                                        headers: n.headers,
+                                                        ..Default::default()
+                                                    })
+                                                    .expect("msg");
+                                                }
+                                            };
+                                        }
                                     }
                                 }
                             }
@@ -159,9 +206,7 @@ impl EslConnection {
             }
             EslConnectionType::Outbound => {
                 let response = connection.send_recv(b"connect").await?;
-                trace!("{:?}", response);
-                unimplemented!("Fix this");
-                // connection.connection_info = Some(response.headers().clone());
+                connection.connection_info = Some(response.headers.clone());
                 let response = connection
                     .subscribe(vec!["BACKGROUND_JOB", "CHANNEL_EXECUTE_COMPLETE"])
                     .await?;
@@ -202,12 +247,16 @@ impl EslConnection {
     }
 
     /// For hanging up call in outbound mode
-    pub async fn hangup(&self, reason: &str) -> Result<Event, EslError> {
+    pub async fn hangup(&self, reason: &str) -> Result<CommandAndApiReplyBody, EslError> {
         self.execute("hangup", reason).await
     }
 
     /// executes application in freeswitch
-    pub async fn execute(&self, app_name: &str, app_args: &str) -> Result<Event, EslError> {
+    pub async fn execute(
+        &self,
+        app_name: &str,
+        app_args: &str,
+    ) -> Result<CommandAndApiReplyBody, EslError> {
         let event_uuid = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = channel();
         self.background_jobs.insert(event_uuid.clone(), tx);
@@ -216,12 +265,16 @@ impl EslConnection {
         let response = self.send_recv(command.as_bytes()).await?;
         trace!("inside execute {:?}", response);
         let resp = rx.await?;
-        trace!("got response from channel {:?}", resp);
-        Ok(Event::default())
+        match resp {
+            FreeswitchReply::CommandAndApiReply(n) => Ok(n),
+            _ => {
+                panic!("this should not happened {:?}", resp);
+            }
+        }
     }
 
     /// answers call in outbound mode
-    pub async fn answer(&self) -> Result<Event, EslError> {
+    pub async fn answer(&self) -> Result<CommandAndApiReplyBody, EslError> {
         self.execute("answer", "").await
     }
 

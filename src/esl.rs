@@ -1,6 +1,7 @@
 use tokio::net::TcpStream;
 
-use crate::{connection::EslConnection, EslError};
+use crate::connection::EslConnection;
+use crate::EslError;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum EslConnectionType {
     Inbound,

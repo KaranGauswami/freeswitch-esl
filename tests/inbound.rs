@@ -26,7 +26,6 @@ async fn reloadxml_with_api() -> Result<()> {
 #[timeout(5000)]
 async fn reloadxml_with_bgapi() -> Result<()> {
     let (_, addr) = get_server_address().await?;
-    // let addr = "localhost:8091";
     let stream = TcpStream::connect(addr).await?;
     let inbound = Esl::inbound(stream, "ClueCon").await?;
     let response = inbound.bgapi("reloadxml").await;
@@ -51,6 +50,7 @@ async fn call_user_that_doesnt_exists() -> Result<()> {
 #[tokio::test]
 #[timeout(10000)]
 async fn send_recv_test() -> Result<()> {
+    use std::collections::HashMap;
     let (_, addr) = get_server_address().await?;
     let stream = TcpStream::connect(addr).await?;
     let inbound = Esl::inbound(stream, "ClueCon").await?;
@@ -58,6 +58,7 @@ async fn send_recv_test() -> Result<()> {
     assert_eq!(
         response,
         CommandAndApiReplyBody {
+            headers: HashMap::default(),
             code: Code::Ok,
             reply_text: "[Success]".into(),
             job_uuid: None
@@ -100,18 +101,16 @@ async fn concurrent_api() -> Result<()> {
     let (_, addr) = get_server_address().await?;
     let stream = TcpStream::connect(addr).await?;
     let inbound = Esl::inbound(stream, "ClueCon").await?;
-    let response1 = inbound.api("reloadxml").await;
-    let response2 = inbound
-        .api("originate user/some_user_that_doesnt_exists karan")
-        .await;
-    // let response3 = inbound.api("reloadxml").await;
-    // let (response1, response2, response3) = tokio::join!(response1, response2, response3);
-    // assert_eq!(Ok("[Success]".into()), response1);
-    // assert_eq!(
-    //     Err(EslError::ApiError("SUBSCRIBER_ABSENT".into())),
-    //     response2
-    // );
-    // assert_eq!(Ok("[Success]".into()), response3);
+    let response1 = inbound.api("reloadxml");
+    let response2 = inbound.api("originate user/some_user_that_doesnt_exists karan");
+    let response3 = inbound.api("reloadxml");
+    let (response1, response2, response3) = tokio::join!(response1, response2, response3);
+    assert_eq!(Ok("[Success]".into()), response1);
+    assert_eq!(
+        Err(EslError::ApiError("SUBSCRIBER_ABSENT".into())),
+        response2
+    );
+    assert_eq!(Ok("[Success]".into()), response3);
     Ok(())
 }
 

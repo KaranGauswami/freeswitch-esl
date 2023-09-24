@@ -1,44 +1,56 @@
-use std::collections::HashMap;
-
 const PLAY_AND_GET_DIGITS_APP: &str = "play_and_get_digits";
 const PLAYBACK_APP: &str = "playback";
 
-use crate::{EslConnection, EslError, Event};
+use crate::{CommandAndApiReplyBody, EslConnection, EslError};
 
 impl EslConnection {
     /// plays file in call during outbound mode
-    pub async fn playback(&self, file_path: &str) -> Result<Event, EslError> {
+    pub async fn playback(&self, file_path: &str) -> Result<CommandAndApiReplyBody, EslError> {
         self.execute(PLAYBACK_APP, file_path).await
     }
 
     /// record_session during outbound mode
-    pub async fn record_session(&self, file_path: &str) -> Result<Event, EslError> {
+    pub async fn record_session(
+        &self,
+        file_path: &str,
+    ) -> Result<CommandAndApiReplyBody, EslError> {
         self.execute("record_session", file_path).await
     }
 
     /// send dtmf during outbound mode
-    pub async fn send_dtmf(&self, dtmf_str: &str) -> Result<Event, EslError> {
+    pub async fn send_dtmf(&self, dtmf_str: &str) -> Result<CommandAndApiReplyBody, EslError> {
         self.execute("send_dtmf", dtmf_str).await
     }
 
     /// wait for silence during outbound mode
-    pub async fn wait_for_silence(&self, silence_str: &str) -> Result<Event, EslError> {
+    pub async fn wait_for_silence(
+        &self,
+        silence_str: &str,
+    ) -> Result<CommandAndApiReplyBody, EslError> {
         self.execute("wait_for_silence", silence_str).await
     }
 
     /// sleep for specified milliseconds in outbound mode
-    pub async fn sleep(&self, millis: u32) -> Result<Event, EslError> {
+    pub async fn sleep(&self, millis: u32) -> Result<CommandAndApiReplyBody, EslError> {
         self.execute("sleep", &millis.to_string()).await
     }
 
     ///set a channel variable
-    pub async fn set_variable(&self, var: &str, value: &str) -> Result<Event, EslError> {
+    pub async fn set_variable(
+        &self,
+        var: &str,
+        value: &str,
+    ) -> Result<CommandAndApiReplyBody, EslError> {
         let args = format!("{}={}", var, value);
         self.execute("set", &args).await
     }
 
     ///add  a freeswitch log
-    pub async fn fs_log(&self, loglevel: &str, msg: &str) -> Result<Event, EslError> {
+    pub async fn fs_log(
+        &self,
+        loglevel: &str,
+        msg: &str,
+    ) -> Result<CommandAndApiReplyBody, EslError> {
         let args = format!("{} {}", loglevel, msg);
         self.execute("log", &args).await
     }
@@ -60,15 +72,11 @@ impl EslConnection {
             "{min} {max} {tries} {timeout} {terminators} {file} {invalid_file} {variable_name}",
         );
         let data = self.execute(PLAY_AND_GET_DIGITS_APP, &app_args).await?;
-        let body = data.body.as_ref().unwrap();
-        let body: HashMap<String, String> = HashMap::new();
-        unimplemented!("");
-        // let body = parse_json_body(body).unwrap();
+        let body = &data.headers;
         let result = body.get(&format!("variable_{}", variable_name));
         let Some(digit) = result else {
             return Err(EslError::NoInput);
         };
-        // let digit = digit.as_str().unwrap().to_string();
-        Ok("".to_string())
+        Ok(digit.to_owned())
     }
 }
