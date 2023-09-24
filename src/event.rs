@@ -1,16 +1,14 @@
 use std::collections::HashMap;
 
-use serde_json::Value;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 /// Structure of event returned from freeswitch
 pub struct Event {
-    pub(crate) headers: HashMap<String, Value>,
+    pub(crate) headers: HashMap<String, String>,
     pub(crate) body: Option<String>,
 }
 impl Event {
     /// Returns header from event
-    pub fn headers(&self) -> &HashMap<String, Value> {
+    pub fn headers(&self) -> &HashMap<String, String> {
         &self.headers
     }
     /// Returns body from event

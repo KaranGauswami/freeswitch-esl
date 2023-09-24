@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use serde_json::Value;
-
 const PLAY_AND_GET_DIGITS_APP: &str = "play_and_get_digits";
 const PLAYBACK_APP: &str = "playback";
 
@@ -63,16 +61,14 @@ impl EslConnection {
         );
         let data = self.execute(PLAY_AND_GET_DIGITS_APP, &app_args).await?;
         let body = data.body.as_ref().unwrap();
-        let body = parse_json_body(body).unwrap();
+        let body: HashMap<String, String> = HashMap::new();
+        unimplemented!("");
+        // let body = parse_json_body(body).unwrap();
         let result = body.get(&format!("variable_{}", variable_name));
         let Some(digit) = result else {
             return Err(EslError::NoInput);
         };
-        let digit = digit.as_str().unwrap().to_string();
-        Ok(digit)
+        // let digit = digit.as_str().unwrap().to_string();
+        Ok("".to_string())
     }
-}
-
-fn parse_json_body(body: &str) -> Result<HashMap<String, Value>, EslError> {
-    Ok(serde_json::from_str(body)?)
 }

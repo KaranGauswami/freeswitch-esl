@@ -35,11 +35,6 @@ impl From<tokio::sync::oneshot::error::RecvError> for EslError {
         Self::InternalError(error.to_string())
     }
 }
-impl From<serde_json::Error> for EslError {
-    fn from(error: serde_json::Error) -> Self {
-        Self::InternalError(error.to_string())
-    }
-}
 impl From<ParseIntError> for EslError {
     fn from(error: ParseIntError) -> Self {
         Self::InternalError(error.to_string())
