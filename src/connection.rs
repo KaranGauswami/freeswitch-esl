@@ -7,8 +7,7 @@ use dashmap::DashMap;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
 use std::sync::{atomic::AtomicBool, Arc};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::mpsc;
 use tokio::sync::{
     oneshot::{channel, Sender},
@@ -59,7 +58,7 @@ impl EslConnection {
     }
 
     pub(crate) async fn new(
-        mut stream: TcpStream,
+        mut stream: impl AsyncRead + AsyncWrite + Unpin + Send + 'static,
         password: impl ToString,
         connection_type: EslConnectionType,
     ) -> Result<Self, EslError> {

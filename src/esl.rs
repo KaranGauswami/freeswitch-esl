@@ -1,4 +1,4 @@
-use tokio::net::TcpStream;
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::connection::EslConnection;
 use crate::EslError;
@@ -12,14 +12,16 @@ pub struct Esl;
 impl Esl {
     /// Creates new inbound connection to freeswitch
     pub async fn inbound(
-        stream: TcpStream,
+        stream: impl AsyncRead + AsyncWrite + Send + 'static + Unpin,
         password: impl ToString,
     ) -> Result<EslConnection, EslError> {
         EslConnection::new(stream, password, EslConnectionType::Inbound).await
     }
 
     /// Creates new server for outbound connection
-    pub async fn outbound(stream: TcpStream) -> Result<EslConnection, EslError> {
+    pub async fn outbound(
+        stream: impl AsyncRead + AsyncWrite + Send + 'static + Unpin,
+    ) -> Result<EslConnection, EslError> {
         let connection = EslConnection::new(stream, "None", EslConnectionType::Outbound).await?;
         Ok(connection)
     }
