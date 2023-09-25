@@ -7,19 +7,20 @@ use dashmap::DashMap;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
 use std::sync::{atomic::AtomicBool, Arc};
-use tokio::io::{AsyncReadExt, AsyncWriteExt, WriteHalf};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio::sync::mpsc;
 use tokio::sync::{
     oneshot::{channel, Sender},
     Mutex,
 };
-use tracing::{error, info, trace, warn};
+use tracing::{info, trace, warn};
 #[derive(Debug)]
 /// contains Esl connection with freeswitch
 pub struct EslConnection {
     password: String,
     commands: Arc<Mutex<VecDeque<Sender<CommandAndApiReplyBody>>>>,
-    transport_tx: Arc<Mutex<WriteHalf<TcpStream>>>,
+    command_channels: Arc<Mutex<mpsc::Sender<Vec<u8>>>>,
     background_jobs: Arc<DashMap<String, Sender<FreeswitchReply>>>,
     connected: AtomicBool,
     pub(crate) call_uuid: Option<String>,
@@ -42,12 +43,11 @@ impl EslConnection {
         self.connected.load(Ordering::Relaxed)
     }
     pub(crate) async fn send(&self, item: &[u8]) -> Result<(), EslError> {
-        let mut transport = self.transport_tx.lock().await;
-        let error = transport.write_all(item).await;
-        error!("Error writing data into TCP stream {:?}", error);
-        // TODO: fix this write
-        let error = transport.write_all(b"\n\n").await;
-        error!("Error writing data into TCP stream {:?}", error);
+        let sender = self.command_channels.lock().await;
+        let mut buffer = Vec::with_capacity(item.len() + 2);
+        buffer.extend_from_slice(item);
+        buffer.extend_from_slice(b"\n\n");
+        let _ = sender.send(buffer).await;
         Ok(())
     }
     /// sends raw message to freeswitch and receives reply
@@ -70,23 +70,29 @@ impl EslConnection {
         let mut dst = Vec::new();
         let mut bufs = [0; 1024];
         if connection_type == EslConnectionType::Inbound {
-            // transport_rx.next().await;
             let bytes = stream.read(&mut bufs[..]).await.unwrap();
             let auth_message = String::from_utf8_lossy(&bufs[..bytes]);
             let _ = parse_auth_request(&auth_message);
         }
-        let (mut read_half, write_half) = tokio::io::split(stream);
-        let transport_tx = Arc::new(Mutex::new(write_half));
+        let (mut read_half, mut write_half) = tokio::io::split(stream);
+
+        let (tx, mut rx) = tokio::sync::mpsc::channel(100);
         let mut connection = Self {
             password: password.to_string(),
             commands,
             background_jobs,
-            transport_tx,
+            command_channels: Arc::new(Mutex::new(tx)),
             connected: AtomicBool::new(false),
             call_uuid: None,
             connection_info: None,
         };
         tokio::spawn(async move {
+            tokio::spawn(async move {
+                while let Some(data) = rx.recv().await {
+                    let write = write_half.write(&data).await;
+                    println!("writing result {:?}", write);
+                }
+            });
             loop {
                 let read_bytes = read_half.read(&mut bufs[..]).await.unwrap();
 
