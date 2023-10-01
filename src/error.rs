@@ -1,8 +1,7 @@
-use std::num::ParseIntError;
-
 use thiserror::Error;
+use tokio::sync::oneshot::error::RecvError; // Import std::io::Error as IoError
 
-#[derive(Clone, Debug, PartialEq, Ord, PartialOrd, Eq, Hash, Error)]
+#[derive(Error, Debug, PartialEq)]
 #[allow(missing_docs)]
 /// Error type for Esl
 pub enum EslError {
@@ -12,31 +11,19 @@ pub enum EslError {
     #[error("Wrong password.")]
     AuthFailed,
 
-    #[error("Unable to connect to destination server.")]
+    #[error("Unable to connect to destination server: {0}")]
     ConnectionError(String),
 
     #[error("{0:?}")]
     ApiError(String),
-
-    #[error("")]
-    CodeParseError(),
-
     #[error("Didnt get any digits")]
     NoInput,
-}
 
+    #[error(transparent)]
+    ChannelError(#[from] RecvError),
+}
 impl From<std::io::Error> for EslError {
     fn from(error: std::io::Error) -> Self {
-        Self::InternalError(error.to_string())
-    }
-}
-impl From<tokio::sync::oneshot::error::RecvError> for EslError {
-    fn from(error: tokio::sync::oneshot::error::RecvError) -> Self {
-        Self::InternalError(error.to_string())
-    }
-}
-impl From<ParseIntError> for EslError {
-    fn from(error: ParseIntError) -> Self {
         Self::InternalError(error.to_string())
     }
 }
