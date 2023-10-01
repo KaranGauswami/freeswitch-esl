@@ -23,7 +23,7 @@ pub struct EslConnection {
     background_jobs: Arc<DashMap<String, Sender<FreeswitchReply>>>,
     connected: AtomicBool,
     pub(crate) call_uuid: Option<String>,
-    connection_info: Option<HashMap<String, String>>,
+    connection_info: HashMap<String, String>,
 }
 
 impl EslConnection {
@@ -83,7 +83,7 @@ impl EslConnection {
             command_channels: Arc::new(Mutex::new(tx)),
             connected: AtomicBool::new(false),
             call_uuid: None,
-            connection_info: None,
+            connection_info: HashMap::default(),
         };
         tokio::spawn(async move {
             tokio::spawn(async move {
@@ -100,7 +100,7 @@ impl EslConnection {
                 }
                 dst.extend_from_slice(&bufs[0..read_bytes]);
                 loop {
-                    let inputs = String::from_utf8_lossy(&dst).to_string();
+                    let inputs = String::from_utf8_lossy(&dst);
                     if let Ok(event) = parse_any_freeswitch_event(&inputs) {
                         let (remaining, parsed) = event;
                         dst.drain(0..inputs.len() - remaining.len());
@@ -211,16 +211,19 @@ impl EslConnection {
             }
             EslConnectionType::Outbound => {
                 let response = connection.send_recv(b"connect").await?;
-                connection.connection_info = Some(response.headers.clone());
+                connection.connection_info = response.headers.clone();
                 let response = connection
                     .subscribe(vec!["BACKGROUND_JOB", "CHANNEL_EXECUTE_COMPLETE"])
                     .await?;
                 trace!("{:?}", response);
                 let response = connection.send_recv(b"myevents").await?;
                 trace!("{:?}", response);
-                let connection_info = connection.connection_info.as_ref().unwrap();
 
-                let channel_unique_id = connection_info.get("Channel-Unique-ID").unwrap().as_str();
+                let channel_unique_id = connection
+                    .connection_info
+                    .get("Channel-Unique-ID")
+                    .unwrap()
+                    .as_str();
                 connection.call_uuid = Some(channel_unique_id.to_string());
             }
         }
