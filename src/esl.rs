@@ -1,6 +1,8 @@
 use tokio::net::ToSocketAddrs;
 
 use crate::{connection::EslConnection, outbound::Outbound, EslError};
+use std::collections::HashMap;
+use serde_json::Value;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum EslConnectionType {
     Inbound,
@@ -13,8 +15,9 @@ impl Esl {
     pub async fn inbound(
         addr: impl ToSocketAddrs,
         password: impl ToString,
+        listener: Option<tokio::sync::mpsc::Sender<HashMap<String, Value>>>,
     ) -> Result<EslConnection, EslError> {
-        EslConnection::new(addr, password, EslConnectionType::Inbound).await
+        EslConnection::new(addr, password, EslConnectionType::Inbound, listener).await
     }
 
     /// Creates new server for outbound connection

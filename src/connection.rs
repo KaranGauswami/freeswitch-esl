@@ -12,6 +12,7 @@ use tokio::io::WriteHalf;
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio::sync::{
     oneshot::{channel, Sender},
+    mpsc,
     Mutex,
 };
 use tokio_stream::StreamExt;
@@ -60,6 +61,7 @@ impl EslConnection {
         stream: TcpStream,
         password: impl ToString,
         connection_type: EslConnectionType,
+        listener: Option<mpsc::Sender<HashMap<String, Value>>>,
     ) -> Result<Self, EslError> {
         // let sender = Arc::new(sender);
         let commands = Arc::new(Mutex::new(VecDeque::new()));
@@ -128,8 +130,14 @@ impl EslConnection {
                                                 }
                                                 trace!("continued");
                                                 trace!("got channel execute complete");
+                                                continue;
                                             }
                                         }
+                                    }
+                                }
+                                if let Some(ref listener) = listener {
+                                    if let Err(e) = listener.send(event_body).await {
+                                        trace!("got error forwarding event event to listener: {}", e);
                                     }
                                 }
                                 continue;
@@ -186,9 +194,10 @@ impl EslConnection {
         socket: impl ToSocketAddrs,
         password: impl ToString,
         connection_type: EslConnectionType,
+        listener: Option<mpsc::Sender<HashMap<String, Value>>>,
     ) -> Result<Self, EslError> {
         let stream = TcpStream::connect(socket).await?;
-        Self::with_tcpstream(stream, password, connection_type).await
+        Self::with_tcpstream(stream, password, connection_type, listener).await
     }
     pub(crate) async fn auth(&self) -> Result<String, EslError> {
         let auth_response = self
