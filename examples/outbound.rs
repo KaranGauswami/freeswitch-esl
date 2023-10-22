@@ -1,4 +1,5 @@
 use freeswitch_esl::{Esl, EslConnection, EslError};
+use tokio::net::TcpListener;
 
 async fn process_call(conn: EslConnection) -> Result<(), EslError> {
     conn.answer().await?;
@@ -26,10 +27,13 @@ async fn process_call(conn: EslConnection) -> Result<(), EslError> {
 async fn main() -> Result<(), EslError> {
     let addr = "0.0.0.0:8085"; // Listening address
     println!("Listening on {}", addr);
-    let listener = Esl::outbound(addr).await?;
+    let listener = TcpListener::bind(addr).await?;
 
     loop {
         let (socket, _) = listener.accept().await?;
-        tokio::spawn(async move { process_call(socket).await });
+        tokio::spawn(async move {
+            let stream = Esl::outbound(socket).await.unwrap();
+            process_call(stream).await.unwrap();
+        });
     }
 }

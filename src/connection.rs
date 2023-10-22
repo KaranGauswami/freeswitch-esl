@@ -10,7 +10,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
 use std::sync::{atomic::AtomicBool, Arc};
 use tokio::io::WriteHalf;
-use tokio::net::{TcpStream, ToSocketAddrs};
+use tokio::net::TcpStream;
 use tokio::sync::{
     oneshot::{channel, Sender},
     Mutex,
@@ -69,7 +69,7 @@ impl EslConnection {
         Ok(rx.await?)
     }
 
-    pub(crate) async fn with_tcpstream(
+    pub(crate) async fn new(
         stream: TcpStream,
         password: impl ToString,
         connection_type: EslConnectionType,
@@ -195,14 +195,6 @@ impl EslConnection {
         self.send_recv(message.as_bytes()).await
     }
 
-    pub(crate) async fn new(
-        socket: impl ToSocketAddrs,
-        password: impl ToString,
-        connection_type: EslConnectionType,
-    ) -> Result<Self, EslError> {
-        let stream = TcpStream::connect(socket).await?;
-        Self::with_tcpstream(stream, password, connection_type).await
-    }
     pub(crate) async fn auth(&self) -> Result<String, EslError> {
         let auth_response = self
             .send_recv(format!("auth {}", self.password).as_bytes())
