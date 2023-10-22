@@ -4,6 +4,7 @@ use crate::esl::EslConnectionType;
 use crate::event::Event;
 use crate::io::EslCodec;
 use futures::SinkExt;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
@@ -30,6 +31,18 @@ pub struct EslConnection {
 }
 
 impl EslConnection {
+    /// Returns one of the session parameters as a string
+    pub fn get_info_string(&self, key: &str) -> Option<String> {
+        let value = self.connection_info.as_ref()?.get(key)?.clone();
+        serde_json::from_value(value).ok()?
+    }
+
+    /// Returns one of the session parameters as any deserializable type
+    pub fn get_info<V: DeserializeOwned>(&self, key: &str) -> Option<V> {
+        let value = self.connection_info.as_ref()?.get(key)?.clone();
+        serde_json::from_value(value).ok()?
+    }
+
     /// returns call uuid in outbound mode
     pub async fn call_uuid(&self) -> Option<String> {
         self.call_uuid.clone()
