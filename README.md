@@ -34,6 +34,13 @@ async fn main() -> Result<(), EslError> {
 
 ## Outbound Example
 
+To use it in outbound mode, add the following line to your FreeSWITCH dialplan:
+
+```xml
+<action application="socket" data="127.0.0.1:8085 async full"/>
+```
+In the main.rs
+
 ```rust
 use freeswitch_esl::{Esl, EslConnection, EslError};
 use tokio::net::TcpListener;
